@@ -2,21 +2,39 @@ openapi: 3.1.0
 info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
-  version: 0.1.0
-  description: API specification
+  version: 0.2.0
+  description: Team Health Check API — Pulse Framework
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: questions
+    description: Pulse question bank
+  - name: check-ins
+    description: Check-in sessions
+  - name: dashboard
+    description: Dashboard and analytics
+  - name: teams
+    description: Team management
+  - name: projects
+    description: Design-ops project tracking
+  - name: design-team
+    description: Design team member tracking
+  - name: register-items
+    description: Risks and opportunities register
+  - name: allowed-emails
+    description: Email allowlist management
+  - name: design-ops-dashboard
+    description: Design ops dashboard aggregates
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +42,649 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /teams/current:
+    get:
+      operationId: getCurrentTeam
+      tags: [teams]
+      summary: Get current team info
+      responses:
+        "200":
+          description: Current team
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Team"
+
+  /teams/current/members:
+    get:
+      operationId: getTeamMembers
+      tags: [teams]
+      summary: Get team members
+      responses:
+        "200":
+          description: List of team members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TeamMember"
+
+  /questions/session:
+    get:
+      operationId: getSessionQuestions
+      tags: [questions]
+      summary: Get a pulse session question set (core + rotating)
+      responses:
+        "200":
+          description: Session questions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Question"
+
+  /check-ins:
+    get:
+      operationId: getCheckIns
+      tags: [check-ins]
+      summary: List user check-ins
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: List of check-ins
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CheckIn"
+    post:
+      operationId: createCheckIn
+      tags: [check-ins]
+      summary: Start a new check-in session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCheckInBody"
+      responses:
+        "201":
+          description: Check-in created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckIn"
+
+  /check-ins/{id}:
+    get:
+      operationId: getCheckIn
+      tags: [check-ins]
+      summary: Get a single check-in with responses
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Check-in details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckInDetail"
+        "404":
+          description: Not found
+
+  /check-ins/{id}/responses:
+    post:
+      operationId: submitResponses
+      tags: [check-ins]
+      summary: Submit responses for a check-in
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitResponsesBody"
+      responses:
+        "200":
+          description: Responses saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckInDetail"
+
+  /check-ins/{id}/complete:
+    post:
+      operationId: completeCheckIn
+      tags: [check-ins]
+      summary: Mark a check-in as completed
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Check-in completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckIn"
+
+  /dashboard:
+    get:
+      operationId: getDashboard
+      tags: [dashboard]
+      summary: Get role-aware dashboard overview
+      responses:
+        "200":
+          description: Dashboard data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardData"
+
+  /my-journey:
+    get:
+      operationId: getMyJourney
+      tags: [dashboard]
+      summary: Get personal response history and trends
+      parameters:
+        - name: days
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 90
+      responses:
+        "200":
+          description: Personal journey data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JourneyData"
+
+  /team-summary:
+    get:
+      operationId: getTeamSummary
+      tags: [dashboard]
+      summary: Get anonymized team health summary (leads/directors only)
+      parameters:
+        - name: days
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 90
+      responses:
+        "200":
+          description: Team summary with pillar scores
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TeamSummaryData"
+
+  /projects:
+    get:
+      operationId: listProjects
+      tags: [projects]
+      summary: List team projects with enriched health, trend, and counts
+      responses:
+        "200":
+          description: List of projects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ProjectEnriched"
+    post:
+      operationId: createProject
+      tags: [projects]
+      summary: Create a new project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProjectBody"
+      responses:
+        "201":
+          description: Project created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+
+  /projects/{id}:
+    get:
+      operationId: getProject
+      tags: [projects]
+      summary: Get a project with health checks, assignments, and register items
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Project detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectDetail"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateProject
+      tags: [projects]
+      summary: Update a project
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProjectBody"
+      responses:
+        "200":
+          description: Project updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+    delete:
+      operationId: deleteProject
+      tags: [projects]
+      summary: Delete a project (cascades health checks, items, assignments)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /projects/{id}/health-checks:
+    post:
+      operationId: createProjectHealthCheck
+      tags: [projects]
+      summary: Create a project health check
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProjectHealthCheckBody"
+      responses:
+        "201":
+          description: Health check created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectHealthCheck"
+
+  /projects/{id}/health-checks/{checkId}:
+    delete:
+      operationId: deleteProjectHealthCheck
+      tags: [projects]
+      summary: Delete a project health check
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: checkId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /projects/{id}/assignments:
+    post:
+      operationId: assignUserToProject
+      tags: [projects]
+      summary: Assign a user to a project
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAssignmentBody"
+      responses:
+        "201":
+          description: Assignment created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectAssignment"
+
+  /projects/{id}/assignments/{userId}:
+    delete:
+      operationId: unassignUserFromProject
+      tags: [projects]
+      summary: Remove a user from a project
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /design-team:
+    get:
+      operationId: listDesignTeam
+      tags: [design-team]
+      summary: List tracked design-team members with enriched health
+      responses:
+        "200":
+          description: List of design team members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DesignTeamMemberEnriched"
+
+  /design-team/{userId}:
+    get:
+      operationId: getDesignTeamMember
+      tags: [design-team]
+      summary: Get a tracked user with health checks and register items
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DesignTeamMemberDetail"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateDesignTeamMember
+      tags: [design-team]
+      summary: Update design-ops fields on a user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDesignTeamMemberBody"
+      responses:
+        "200":
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DesignTeamMember"
+
+  /design-team/{userId}/health-checks:
+    post:
+      operationId: createUserHealthCheck
+      tags: [design-team]
+      summary: Create a user health check
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserHealthCheckBody"
+      responses:
+        "201":
+          description: Health check created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserHealthCheck"
+
+  /design-team/{userId}/health-checks/{checkId}:
+    delete:
+      operationId: deleteUserHealthCheck
+      tags: [design-team]
+      summary: Delete a user health check
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: checkId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /register-items:
+    get:
+      operationId: listRegisterItems
+      tags: [register-items]
+      summary: List register items (risks + opportunities) with filters
+      parameters:
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [risk, opportunity]
+        - name: linkedTo
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [project, user]
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [new, in_work, in_review, done]
+        - name: projectId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: userId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of register items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RegisterItem"
+    post:
+      operationId: createRegisterItem
+      tags: [register-items]
+      summary: Create a new register item
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRegisterItemBody"
+      responses:
+        "201":
+          description: Register item created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegisterItem"
+
+  /register-items/{id}:
+    patch:
+      operationId: updateRegisterItem
+      tags: [register-items]
+      summary: Update a register item (auto-sets closedAt when status=done)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRegisterItemBody"
+      responses:
+        "200":
+          description: Register item updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegisterItem"
+    delete:
+      operationId: deleteRegisterItem
+      tags: [register-items]
+      summary: Delete a register item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /allowed-emails:
+    get:
+      operationId: listAllowedEmails
+      tags: [allowed-emails]
+      summary: List team allowed emails (directors only)
+      responses:
+        "200":
+          description: List of allowed emails
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AllowedEmail"
+    post:
+      operationId: createAllowedEmail
+      tags: [allowed-emails]
+      summary: Add an email to the team allowlist (directors only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAllowedEmailBody"
+      responses:
+        "201":
+          description: Email added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AllowedEmail"
+
+  /allowed-emails/{id}:
+    delete:
+      operationId: deleteAllowedEmail
+      tags: [allowed-emails]
+      summary: Remove an email from the team allowlist (directors only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /design-ops/dashboard:
+    get:
+      operationId: getDesignOpsDashboard
+      tags: [design-ops-dashboard]
+      summary: Aggregate data for the design-ops dashboard widgets
+      responses:
+        "200":
+          description: Dashboard aggregate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DesignOpsDashboardData"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +695,858 @@ components:
       required:
         - status
 
+    Team:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        memberCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, name, memberCount, createdAt]
+
+    TeamMember:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        avatarUrl:
+          type: ["string", "null"]
+        role:
+          type: string
+      required: [id, name, avatarUrl, role]
+
+    Question:
+      type: object
+      properties:
+        id:
+          type: integer
+        pillar:
+          type: string
+        questionText:
+          type: string
+        inputType:
+          type: string
+          enum: [likert_5, traffic_light, emoji_5, numeric_10, yes_no, frequency_5, open_text, single_select]
+        options:
+          type: ["array", "null"]
+          items:
+            type: string
+        order:
+          type: integer
+        impactWeight:
+          type: number
+        isCore:
+          type: boolean
+        isRequired:
+          type: boolean
+        followUpLogic:
+          type: ["object", "null"]
+      required: [id, pillar, questionText, inputType, options, order, impactWeight, isCore, isRequired, followUpLogic]
+
+    CheckIn:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        cadence:
+          type: string
+        status:
+          type: string
+          enum: [in_progress, completed]
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: ["string", "null"]
+          format: date-time
+      required: [id, userId, cadence, status, createdAt, completedAt]
+
+    CreateCheckInBody:
+      type: object
+      properties:
+        cadence:
+          type: string
+          default: weekly
+      required: []
+
+    CheckInResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        questionId:
+          type: integer
+        numericValue:
+          type: ["number", "null"]
+        textValue:
+          type: ["string", "null"]
+        emojiValue:
+          type: ["string", "null"]
+        selectedOptions:
+          type: ["array", "null"]
+          items:
+            type: string
+        trafficLight:
+          type: ["string", "null"]
+          enum: [green, yellow, red, null]
+        normalizedScore:
+          type: ["number", "null"]
+      required: [id, questionId, numericValue, textValue, emojiValue, selectedOptions, trafficLight, normalizedScore]
+
+    CheckInDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        cadence:
+          type: string
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: ["string", "null"]
+          format: date-time
+        responses:
+          type: array
+          items:
+            $ref: "#/components/schemas/CheckInResponse"
+      required: [id, userId, cadence, status, createdAt, completedAt, responses]
+
+    SubmitResponsesBody:
+      type: object
+      properties:
+        responses:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResponseInput"
+      required: [responses]
+
+    ResponseInput:
+      type: object
+      properties:
+        questionId:
+          type: integer
+        numericValue:
+          type: ["number", "null"]
+        textValue:
+          type: ["string", "null"]
+        emojiValue:
+          type: ["string", "null"]
+        selectedOptions:
+          type: ["array", "null"]
+          items:
+            type: string
+        trafficLight:
+          type: ["string", "null"]
+          enum: [green, yellow, red, null]
+      required: [questionId]
+
+    PillarScore:
+      type: object
+      properties:
+        pillar:
+          type: string
+        score:
+          type: number
+        trend:
+          type: string
+          enum: [up, stable, down]
+        previousScore:
+          type: ["number", "null"]
+        favorability:
+          type: number
+        responseCount:
+          type: integer
+        respondentCount:
+          type: integer
+        status:
+          type: string
+          enum: [green, yellow, red, insufficient]
+      required: [pillar, score, trend, previousScore, favorability, responseCount, respondentCount, status]
+
+    DashboardData:
+      type: object
+      properties:
+        teamName:
+          type: string
+        memberCount:
+          type: integer
+        userRole:
+          type: string
+        completionRate:
+          type: number
+        compositeScore:
+          type: number
+        pillarScores:
+          type: array
+          items:
+            $ref: "#/components/schemas/PillarScore"
+        recentActivity:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActivityItem"
+      required: [teamName, memberCount, userRole, completionRate, compositeScore, pillarScores, recentActivity]
+
+    ActivityItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        userName:
+          type: string
+        action:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+      required: [id, userName, action, timestamp]
+
+    TrendPoint:
+      type: object
+      properties:
+        date:
+          type: string
+        value:
+          type: number
+      required: [date, value]
+
+    JourneyData:
+      type: object
+      properties:
+        totalCheckIns:
+          type: integer
+        currentStreak:
+          type: integer
+        pillarTimelines:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              $ref: "#/components/schemas/TrendPoint"
+        pillarAverages:
+          type: array
+          items:
+            $ref: "#/components/schemas/PillarScore"
+        recentReflections:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReflectionEntry"
+      required: [totalCheckIns, currentStreak, pillarTimelines, pillarAverages, recentReflections]
+
+    ReflectionEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        questionText:
+          type: string
+        response:
+          type: string
+        pillar:
+          type: string
+        date:
+          type: string
+          format: date-time
+      required: [id, questionText, response, pillar, date]
+
+    TeamSummaryData:
+      type: object
+      properties:
+        compositeScore:
+          type: number
+        participationRate:
+          type: number
+        respondentCount:
+          type: integer
+        pillarScores:
+          type: array
+          items:
+            $ref: "#/components/schemas/PillarScore"
+        trendChart:
+          type: array
+          items:
+            $ref: "#/components/schemas/TrendPoint"
+        topStrengths:
+          type: array
+          items:
+            type: string
+        areasForGrowth:
+          type: array
+          items:
+            type: string
+        alerts:
+          type: array
+          items:
+            $ref: "#/components/schemas/AlertItem"
+      required: [compositeScore, participationRate, respondentCount, pillarScores, trendChart, topStrengths, areasForGrowth, alerts]
+
+    AlertItem:
+      type: object
+      properties:
+        pillar:
+          type: string
+        type:
+          type: string
+          enum: [decline, critical, polarization]
+        message:
+          type: string
+      required: [pillar, type, message]
+
+    # ─── Design Ops: Projects ──────────────────────────────────────────
+
+    Project:
+      type: object
+      properties:
+        id:
+          type: integer
+        teamId:
+          type: integer
+        name:
+          type: string
+        clientName:
+          type: string
+        leadUserId:
+          type: integer
+        status:
+          type: string
+          enum: [active, archived]
+        description:
+          type: ["string", "null"]
+        reviewDate:
+          type: ["string", "null"]
+          format: date
+        trend:
+          type: ["string", "null"]
+          enum: [up, down, stable, null]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, teamId, name, clientName, leadUserId, status, description, reviewDate, trend, createdAt, updatedAt]
+
+    ProjectHealthCheck:
+      type: object
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        createdByUserId:
+          type: integer
+        capacity:
+          type: integer
+          minimum: 1
+          maximum: 3
+        clientSatisfaction:
+          type: integer
+          minimum: 1
+          maximum: 3
+        teamSatisfaction:
+          type: integer
+          minimum: 1
+          maximum: 3
+        quality:
+          type: integer
+          minimum: 1
+          maximum: 3
+        summaryNote:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        healthScore:
+          type: number
+        overallHealth:
+          type: string
+          enum: [green, yellow, red]
+      required: [id, projectId, createdByUserId, capacity, clientSatisfaction, teamSatisfaction, quality, summaryNote, createdAt, healthScore, overallHealth]
+
+    ProjectEnriched:
+      allOf:
+        - $ref: "#/components/schemas/Project"
+        - type: object
+          properties:
+            latestHealth:
+              oneOf:
+                - $ref: "#/components/schemas/ProjectHealthCheck"
+                - type: "null"
+            assignedUserIds:
+              type: array
+              items:
+                type: integer
+            riskCount:
+              type: integer
+            oppCount:
+              type: integer
+          required: [latestHealth, assignedUserIds, riskCount, oppCount]
+
+    ProjectDetail:
+      allOf:
+        - $ref: "#/components/schemas/Project"
+        - type: object
+          properties:
+            healthChecks:
+              type: array
+              items:
+                $ref: "#/components/schemas/ProjectHealthCheck"
+            latestHealth:
+              oneOf:
+                - $ref: "#/components/schemas/ProjectHealthCheck"
+                - type: "null"
+            assignedUserIds:
+              type: array
+              items:
+                type: integer
+            registerItems:
+              type: array
+              items:
+                $ref: "#/components/schemas/RegisterItem"
+          required: [healthChecks, latestHealth, assignedUserIds, registerItems]
+
+    CreateProjectBody:
+      type: object
+      properties:
+        name:
+          type: string
+        clientName:
+          type: string
+        leadUserId:
+          type: integer
+        description:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [active, archived]
+          default: active
+      required: [name, clientName, leadUserId]
+
+    UpdateProjectBody:
+      type: object
+      properties:
+        name:
+          type: string
+        clientName:
+          type: string
+        leadUserId:
+          type: integer
+        description:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [active, archived]
+        reviewDate:
+          type: ["string", "null"]
+          format: date
+
+    CreateProjectHealthCheckBody:
+      type: object
+      properties:
+        capacity:
+          type: integer
+          minimum: 1
+          maximum: 3
+        clientSatisfaction:
+          type: integer
+          minimum: 1
+          maximum: 3
+        teamSatisfaction:
+          type: integer
+          minimum: 1
+          maximum: 3
+        quality:
+          type: integer
+          minimum: 1
+          maximum: 3
+        summaryNote:
+          type: ["string", "null"]
+      required: [capacity, clientSatisfaction, teamSatisfaction, quality]
+
+    ProjectAssignment:
+      type: object
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        userId:
+          type: integer
+      required: [id, projectId, userId]
+
+    CreateAssignmentBody:
+      type: object
+      properties:
+        userId:
+          type: integer
+      required: [userId]
+
+    # ─── Design Ops: Design Team ───────────────────────────────────────
+
+    DesignTeamMember:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: ["string", "null"]
+        avatarUrl:
+          type: ["string", "null"]
+        role:
+          type: string
+        teamId:
+          type: ["integer", "null"]
+        isActive:
+          type: boolean
+        roleTitle:
+          type: ["string", "null"]
+        leadUserId:
+          type: ["integer", "null"]
+        employmentStatus:
+          type: string
+          enum: [active, inactive, archived]
+        notes:
+          type: ["string", "null"]
+        reviewDate:
+          type: ["string", "null"]
+          format: date
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, name, email, avatarUrl, role, teamId, isActive, roleTitle, leadUserId, employmentStatus, notes, reviewDate, createdAt, updatedAt]
+
+    UserHealthCheck:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        createdByUserId:
+          type: integer
+        energy:
+          type: integer
+          minimum: 1
+          maximum: 3
+        workloadBalance:
+          type: integer
+          minimum: 1
+          maximum: 3
+        roleClarity:
+          type: integer
+          minimum: 1
+          maximum: 3
+        levelFit:
+          type: integer
+          minimum: 1
+          maximum: 3
+        engagement:
+          type: integer
+          minimum: 1
+          maximum: 3
+        support:
+          type: integer
+          minimum: 1
+          maximum: 3
+        summaryNote:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        healthScore:
+          type: number
+        overallHealth:
+          type: string
+          enum: [green, yellow, red]
+      required: [id, userId, createdByUserId, energy, workloadBalance, roleClarity, levelFit, engagement, support, summaryNote, createdAt, healthScore, overallHealth]
+
+    DesignTeamMemberEnriched:
+      allOf:
+        - $ref: "#/components/schemas/DesignTeamMember"
+        - type: object
+          properties:
+            latestHealth:
+              oneOf:
+                - $ref: "#/components/schemas/UserHealthCheck"
+                - type: "null"
+            projectIds:
+              type: array
+              items:
+                type: integer
+            riskCount:
+              type: integer
+            oppCount:
+              type: integer
+          required: [latestHealth, projectIds, riskCount, oppCount]
+
+    DesignTeamMemberDetail:
+      allOf:
+        - $ref: "#/components/schemas/DesignTeamMember"
+        - type: object
+          properties:
+            healthChecks:
+              type: array
+              items:
+                $ref: "#/components/schemas/UserHealthCheck"
+            latestHealth:
+              oneOf:
+                - $ref: "#/components/schemas/UserHealthCheck"
+                - type: "null"
+            projectIds:
+              type: array
+              items:
+                type: integer
+            registerItems:
+              type: array
+              items:
+                $ref: "#/components/schemas/RegisterItem"
+          required: [healthChecks, latestHealth, projectIds, registerItems]
+
+    UpdateDesignTeamMemberBody:
+      type: object
+      properties:
+        roleTitle:
+          type: ["string", "null"]
+        leadUserId:
+          type: ["integer", "null"]
+        employmentStatus:
+          type: string
+          enum: [active, inactive, archived]
+        notes:
+          type: ["string", "null"]
+        reviewDate:
+          type: ["string", "null"]
+          format: date
+        isActive:
+          type: boolean
+
+    CreateUserHealthCheckBody:
+      type: object
+      properties:
+        energy:
+          type: integer
+          minimum: 1
+          maximum: 3
+        workloadBalance:
+          type: integer
+          minimum: 1
+          maximum: 3
+        roleClarity:
+          type: integer
+          minimum: 1
+          maximum: 3
+        levelFit:
+          type: integer
+          minimum: 1
+          maximum: 3
+        engagement:
+          type: integer
+          minimum: 1
+          maximum: 3
+        support:
+          type: integer
+          minimum: 1
+          maximum: 3
+        summaryNote:
+          type: ["string", "null"]
+      required: [energy, workloadBalance, roleClarity, levelFit, engagement, support]
+
+    # ─── Design Ops: Register Items ────────────────────────────────────
+
+    RegisterItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        teamId:
+          type: integer
+        type:
+          type: string
+          enum: [risk, opportunity]
+        linkedTo:
+          type: string
+          enum: [project, user]
+        projectId:
+          type: ["integer", "null"]
+        userId:
+          type: ["integer", "null"]
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        impact:
+          type: ["integer", "null"]
+        probability:
+          type: ["integer", "null"]
+        confidence:
+          type: ["integer", "null"]
+        value:
+          type: ["integer", "null"]
+        dueDate:
+          type: ["string", "null"]
+          format: date
+        responsibleUserId:
+          type: ["integer", "null"]
+        priority:
+          type: integer
+        status:
+          type: string
+          enum: [new, in_work, in_review, done]
+        createdByUserId:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        closedAt:
+          type: ["string", "null"]
+          format: date-time
+        riskScore:
+          type: ["number", "null"]
+        riskLevel:
+          type: ["string", "null"]
+          enum: [low, medium, high, null]
+        oppScore:
+          type: ["number", "null"]
+        oppLevel:
+          type: ["string", "null"]
+          enum: [low, medium, high, null]
+      required: [id, teamId, type, linkedTo, projectId, userId, title, description, impact, probability, confidence, value, dueDate, responsibleUserId, priority, status, createdByUserId, createdAt, updatedAt, closedAt, riskScore, riskLevel, oppScore, oppLevel]
+
+    CreateRegisterItemBody:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [risk, opportunity]
+        linkedTo:
+          type: string
+          enum: [project, user]
+        projectId:
+          type: ["integer", "null"]
+        userId:
+          type: ["integer", "null"]
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        impact:
+          type: ["integer", "null"]
+          minimum: 1
+          maximum: 3
+        probability:
+          type: ["integer", "null"]
+          minimum: 1
+          maximum: 3
+        confidence:
+          type: ["integer", "null"]
+          minimum: 1
+          maximum: 3
+        value:
+          type: ["integer", "null"]
+          minimum: 1
+          maximum: 3
+        dueDate:
+          type: ["string", "null"]
+          format: date
+        responsibleUserId:
+          type: ["integer", "null"]
+        priority:
+          type: integer
+          default: 0
+        status:
+          type: string
+          enum: [new, in_work, in_review, done]
+          default: new
+      required: [type, linkedTo, title]
+
+    UpdateRegisterItemBody:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: ["string", "null"]
+        impact:
+          type: ["integer", "null"]
+        probability:
+          type: ["integer", "null"]
+        confidence:
+          type: ["integer", "null"]
+        value:
+          type: ["integer", "null"]
+        dueDate:
+          type: ["string", "null"]
+          format: date
+        responsibleUserId:
+          type: ["integer", "null"]
+        priority:
+          type: integer
+        status:
+          type: string
+          enum: [new, in_work, in_review, done]
+
+    # ─── Design Ops: Allowed Emails ────────────────────────────────────
+
+    AllowedEmail:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        teamId:
+          type: ["integer", "null"]
+        invitedByUserId:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, email, teamId, invitedByUserId, createdAt]
+
+    CreateAllowedEmailBody:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+      required: [email]
+
+    # ─── Design Ops: Dashboard ─────────────────────────────────────────
+
+    DesignOpsDashboardData:
+      type: object
+      properties:
+        projects:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProjectEnriched"
+        people:
+          type: array
+          items:
+            $ref: "#/components/schemas/DesignTeamMemberEnriched"
+        registerItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/RegisterItem"
+      required: [projects, people, registerItems]

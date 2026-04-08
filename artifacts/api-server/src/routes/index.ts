@@ -1,8 +1,40 @@
 import { Router, type IRouter } from "express";
 import healthRouter from "./health";
+import authRouter from "./auth";
+import teamsRouter from "./teams";
+import questionsRouter from "./questions";
+import checkInsRouter from "./checkIns";
+import dashboardRouter from "./dashboard";
+import pulseSettingsRouter from "./pulseSettings";
+import subTeamsRouter from "./subTeams";
+import intentThreadsRouter from "./intentThreads";
+import kudosRouter from "./kudos";
+import teamMembersRouter from "./teamMembers";
+import oneOnOnesRouter from "./oneOnOnes";
+import projectsRouter from "./projects";
+import designTeamRouter from "./designTeam";
+import registerItemsRouter from "./registerItems";
+import allowedEmailsRouter from "./allowedEmails";
+import designOpsDashboardRouter from "./designOpsDashboard";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use(authRouter);
+router.use(teamsRouter);
+router.use(questionsRouter);
+router.use(checkInsRouter);
+router.use(dashboardRouter);
+router.use(pulseSettingsRouter);
+router.use(subTeamsRouter);
+router.use(intentThreadsRouter);
+router.use(kudosRouter);
+router.use(teamMembersRouter);
+router.use(oneOnOnesRouter);
+router.use(projectsRouter);
+router.use(designTeamRouter);
+router.use(registerItemsRouter);
+router.use(allowedEmailsRouter);
+router.use(designOpsDashboardRouter);
 
 export default router;
