@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, teamsTable, usersTable, checkInsTable, responsesTable, questionsTable, pulseSettingsTable, userSubTeamsTable } from "@workspace/db";
-import { eq, desc, gte, and, inArray, sql } from "drizzle-orm";
+import { eq, desc, gte, and, inArray } from "drizzle-orm";
 import {
   ALL_PILLARS,
   PILLAR_WEIGHTS,
@@ -597,24 +597,47 @@ router.get("/team-summary", requireLeadOrDirector, async (req, res): Promise<voi
 
   // Weekly trend as a single SQL aggregate. Previously this loop ran
   // one responses query per week (13 queries for a 90-day window).
-  const scopedUserIds = memberIds.length > 0 ? memberIds : [0];
-  const trendRows = await db.execute<{ week: string; avg: number }>(sql`
-    SELECT
-      to_char(date_trunc('week', c.created_at), 'YYYY-MM-DD') AS week,
-      AVG(r.normalized_score)::float AS avg
-    FROM check_ins c
-    JOIN responses r ON r.check_in_id = c.id
-    WHERE c.status = 'completed'
-      AND c.created_at >= ${windowStart}
-      AND c.user_id = ANY(${scopedUserIds}::int[])
-      AND r.normalized_score IS NOT NULL
-    GROUP BY week
-    ORDER BY week ASC
-  `);
-  const trendChart = (trendRows.rows as Array<{ week: string; avg: number }>).map((row) => ({
-    date: row.week,
-    value: Math.round((row.avg ?? 0) * 10) / 10,
-  }));
+  // Note: drizzle's sql`` template doesn't natively cast JS arrays to
+  // Postgres int[], so we use inArray via the ORM for the user filter
+  // and fall back to a two-step approach: fetch all responses for the
+  // window, then bucket them by week in JS.
+  const completedCiIds = completedCheckIns.map((c) => c.id);
+  let trendResponses: { checkInId: number; normalizedScore: number | null }[] = [];
+  if (completedCiIds.length > 0) {
+    trendResponses = await db
+      .select({
+        checkInId: responsesTable.checkInId,
+        normalizedScore: responsesTable.normalizedScore,
+      })
+      .from(responsesTable)
+      .where(inArray(responsesTable.checkInId, completedCiIds));
+  }
+
+  // Build a map of checkInId → created_at for week bucketing.
+  const ciDateMap = new Map(completedCheckIns.map((c) => [c.id, c.createdAt]));
+  const weekBuckets = new Map<string, { sum: number; count: number }>();
+  for (const r of trendResponses) {
+    if (r.normalizedScore == null) continue;
+    const ciDate = ciDateMap.get(r.checkInId);
+    if (!ciDate) continue;
+    // Compute week start (Monday) as the bucket key.
+    const d = new Date(ciDate);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+    const weekStart = new Date(d);
+    weekStart.setDate(diff);
+    const weekKey = weekStart.toISOString().split("T")[0];
+    const bucket = weekBuckets.get(weekKey) ?? { sum: 0, count: 0 };
+    bucket.sum += r.normalizedScore;
+    bucket.count += 1;
+    weekBuckets.set(weekKey, bucket);
+  }
+  const trendChart = [...weekBuckets.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, { sum, count }]) => ({
+      date,
+      value: Math.round((sum / count) * 10) / 10,
+    }));
 
   const sorted = [...validPillars].sort((a, b) => b.score - a.score);
   const topStrengths = sorted.slice(0, 2).map((p) => `${PILLAR_LABELS[p.pillar] || p.pillar}: ${p.score.toFixed(0)}%`);
