@@ -8,6 +8,21 @@ import {
 } from "@workspace/api-zod";
 import { normalizeScore } from "../lib/scoring";
 import { requireTeam } from "../middlewares/requireAuth";
+import { intParam } from "../lib/params";
+
+/**
+ * Runtime type guard for the `follow_up_logic` jsonb column. We only
+ * look up the `question` field today, so anything that isn't a plain
+ * object with a string `question` key falls back to the base question
+ * text instead of blowing up with a cast error.
+ */
+function parseFollowUpLogic(value: unknown): { question?: string } | null {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  const q = (value as Record<string, unknown>).question;
+  return { question: typeof q === "string" ? q : undefined };
+}
 
 const router: IRouter = Router();
 
@@ -146,8 +161,8 @@ router.post("/check-ins/:id/responses", requireTeam, async (req, res): Promise<v
     });
 
     if (resp.textValue && question?.followUpLogic) {
-      const fl = question.followUpLogic as { question?: string };
-      const topic = fl.question || question.questionText;
+      const parsedFl = parseFollowUpLogic(question.followUpLogic);
+      const topic = parsedFl?.question || question.questionText;
       const memberId = req.user!.id;
 
       let [existingThread] = await db

@@ -10,6 +10,7 @@ import {
   computeTrend,
 } from "../lib/scoring";
 import { requireTeam, requireLeadOrDirector } from "../middlewares/requireAuth";
+import { questionsVisibleToTeam } from "../lib/questionScope";
 
 const router: IRouter = Router();
 
@@ -63,7 +64,10 @@ async function computePillarScores(windowDays: number, teamId: number, subTeamUs
     );
   const prevOnlyCheckIns = prevCheckIns.filter((c) => c.createdAt < windowStart);
 
-  const allQuestions = await db.select().from(questionsTable);
+  const allQuestions = await db
+    .select()
+    .from(questionsTable)
+    .where(questionsVisibleToTeam(teamId));
   const questionMap = new Map(allQuestions.map((q) => [q.id, q]));
   const questionsByPillar = new Map<string, typeof allQuestions>();
   for (const q of allQuestions) {
@@ -222,7 +226,10 @@ router.get("/dashboard", requireTeam, async (req, res): Promise<void> => {
         .from(responsesTable)
         .where(inArray(responsesTable.checkInId, ciIds));
 
-      const allQuestions = await db.select().from(questionsTable);
+      const allQuestions = await db
+        .select()
+        .from(questionsTable)
+        .where(questionsVisibleToTeam(teamId));
       const questionMap = new Map(allQuestions.map((q) => [q.id, q]));
 
       personalPillarScores = ALL_PILLARS.map((pillar) => {
@@ -387,6 +394,7 @@ router.get("/dashboard", requireTeam, async (req, res): Promise<void> => {
 
 router.get("/my-journey", requireTeam, async (req, res): Promise<void> => {
   const days = parseInt(req.query.days as string) || 90;
+  const teamId = req.user!.teamId!;
 
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
@@ -425,7 +433,10 @@ router.get("/my-journey", requireTeam, async (req, res): Promise<void> => {
     }
   }
 
-  const allQuestions = await db.select().from(questionsTable);
+  const allQuestions = await db
+    .select()
+    .from(questionsTable)
+    .where(questionsVisibleToTeam(teamId));
   const questionMap = new Map(allQuestions.map((q) => [q.id, q]));
 
   const ciIds = userCheckIns.map((c) => c.id);

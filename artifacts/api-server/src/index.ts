@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { db, teamsTable, usersTable, allowedEmailsTable } from "@workspace/db";
+import { runMigrations } from "@workspace/db/migrator";
 import { eq } from "drizzle-orm";
 
 async function seedDefaults() {
@@ -112,13 +113,24 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-seedDefaults().then(() => {
+async function bootstrap() {
+  try {
+    await runMigrations();
+    logger.info("Database migrations are up to date");
+  } catch (err) {
+    logger.error({ err }, "Failed to run database migrations — aborting startup");
+    process.exit(1);
+  }
+
+  await seedDefaults();
+
   app.listen(port, (err) => {
     if (err) {
       logger.error({ err }, "Error listening on port");
       process.exit(1);
     }
-
     logger.info({ port }, "Server listening");
   });
-});
+}
+
+bootstrap();

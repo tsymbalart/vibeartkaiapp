@@ -65,35 +65,28 @@ router.put("/pulse-settings", requireRole("lead", "director"), async (req, res):
     }
   }
 
-  const [existing] = await db
-    .select()
-    .from(pulseSettingsTable)
-    .where(eq(pulseSettingsTable.teamId, teamId))
-    .limit(1);
+  // Atomic upsert against the `pulse_settings_team_id_unique` constraint.
+  // Avoids the read-then-write race where two concurrent PUTs both miss
+  // the existing row and end up inserting duplicates.
+  const [row] = await db
+    .insert(pulseSettingsTable)
+    .values({
+      teamId,
+      sessionSize: sessionSize ?? 8,
+      pillarWeights: pillarWeights ?? {},
+      scoringMode: scoringMode ?? "latest_only",
+    })
+    .onConflictDoUpdate({
+      target: pulseSettingsTable.teamId,
+      set: {
+        ...(sessionSize !== undefined ? { sessionSize } : {}),
+        ...(pillarWeights !== undefined ? { pillarWeights } : {}),
+        ...(scoringMode !== undefined ? { scoringMode } : {}),
+      },
+    })
+    .returning();
 
-  if (existing) {
-    const [updated] = await db
-      .update(pulseSettingsTable)
-      .set({
-        sessionSize: sessionSize ?? existing.sessionSize,
-        pillarWeights: pillarWeights ?? existing.pillarWeights,
-        scoringMode: scoringMode ?? existing.scoringMode,
-      })
-      .where(eq(pulseSettingsTable.id, existing.id))
-      .returning();
-    res.json(updated);
-  } else {
-    const [created] = await db
-      .insert(pulseSettingsTable)
-      .values({
-        teamId,
-        sessionSize: sessionSize ?? 8,
-        pillarWeights: pillarWeights ?? {},
-        scoringMode: scoringMode ?? "latest_only",
-      })
-      .returning();
-    res.json(created);
-  }
+  res.json(row);
 });
 
 export default router;

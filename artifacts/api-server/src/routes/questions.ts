@@ -1,8 +1,9 @@
 import { Router, type IRouter } from "express";
 import { db, questionsTable, responsesTable, checkInsTable, pulseSettingsTable } from "@workspace/db";
-import { eq, asc, and, inArray, desc } from "drizzle-orm";
+import { eq, asc, and, or, inArray, isNull, desc, sql } from "drizzle-orm";
 import { requireTeam, requireRole } from "../middlewares/requireAuth";
 import { intParam } from "../lib/params";
+import { questionsVisibleToTeam } from "../lib/questionScope";
 
 const router: IRouter = Router();
 
@@ -19,15 +20,18 @@ const WEIGHT_MULTIPLIERS: Record<string, number> = {
   off: 0,
 };
 
-router.get("/questions", requireTeam, async (_req, res): Promise<void> => {
+router.get("/questions", requireTeam, async (req, res): Promise<void> => {
+  const teamId = req.user!.teamId!;
   const questions = await db
     .select()
     .from(questionsTable)
+    .where(questionsVisibleToTeam(teamId))
     .orderBy(asc(questionsTable.pillar), asc(questionsTable.order));
   res.json(questions);
 });
 
 router.post("/questions", requireRole("lead", "director"), async (req, res): Promise<void> => {
+  const teamId = req.user!.teamId!;
   const { pillar, questionText, inputType, options, impactWeight, frequencyClass, isCore, isRequired, source, followUpLogic } = req.body;
 
   if (!pillar || !questionText || !inputType) {
@@ -57,39 +61,64 @@ router.post("/questions", requireRole("lead", "director"), async (req, res): Pro
     return;
   }
 
-  const maxOrderResult = await db
-    .select({ order: questionsTable.order })
-    .from(questionsTable)
-    .where(eq(questionsTable.pillar, pillar))
-    .orderBy(desc(questionsTable.order))
-    .limit(1);
+  // Transactional "next order" computation so two concurrent creates
+  // don't race on the same order value.
+  const created = await db.transaction(async (tx) => {
+    const [maxRow] = await tx
+      .select({ max: sql<number | null>`MAX(${questionsTable.order})` })
+      .from(questionsTable)
+      .where(
+        and(
+          eq(questionsTable.pillar, pillar),
+          or(isNull(questionsTable.teamId), eq(questionsTable.teamId, teamId))
+        )
+      );
 
-  const nextOrder = (maxOrderResult[0]?.order ?? 0) + 1;
+    const nextOrder = (maxRow?.max ?? 0) + 1;
 
-  const [created] = await db
-    .insert(questionsTable)
-    .values({
-      pillar,
-      questionText,
-      inputType,
-      options: options || null,
-      order: nextOrder,
-      impactWeight: impactWeight ?? 1.0,
-      frequencyClass: frequencyClass ?? "standard",
-      isCore: isCore ?? false,
-      isRequired: isRequired ?? true,
-      source: source || "custom",
-      followUpLogic: followUpLogic || null,
-    })
-    .returning();
+    const [row] = await tx
+      .insert(questionsTable)
+      .values({
+        teamId,
+        pillar,
+        questionText,
+        inputType,
+        options: options || null,
+        order: nextOrder,
+        impactWeight: impactWeight ?? 1.0,
+        frequencyClass: frequencyClass ?? "standard",
+        isCore: isCore ?? false,
+        isRequired: isRequired ?? true,
+        source: source || "custom",
+        followUpLogic: followUpLogic || null,
+      })
+      .returning();
+    return row;
+  });
 
   res.status(201).json(created);
 });
 
 router.put("/questions/:id", requireRole("lead", "director"), async (req, res): Promise<void> => {
+  const teamId = req.user!.teamId!;
   const id = intParam(req, "id");
   if (id == null) {
     res.status(400).json({ error: "Invalid question id" });
+    return;
+  }
+
+  // Leads/directors can only modify questions owned by their team.
+  // Global templates (teamId IS NULL) are read-only through this API.
+  const [existing] = await db
+    .select()
+    .from(questionsTable)
+    .where(eq(questionsTable.id, id));
+  if (!existing) {
+    res.status(404).json({ error: "Question not found" });
+    return;
+  }
+  if (existing.teamId !== teamId) {
+    res.status(403).json({ error: "Cannot modify a question owned by another team or a global template" });
     return;
   }
 
@@ -133,31 +162,31 @@ router.put("/questions/:id", requireRole("lead", "director"), async (req, res): 
     .where(eq(questionsTable.id, id))
     .returning();
 
-  if (!updated) {
-    res.status(404).json({ error: "Question not found" });
-    return;
-  }
-
   res.json(updated);
 });
 
 router.delete("/questions/:id", requireRole("lead", "director"), async (req, res): Promise<void> => {
+  const teamId = req.user!.teamId!;
   const id = intParam(req, "id");
   if (id == null) {
     res.status(400).json({ error: "Invalid question id" });
     return;
   }
 
-  const [deleted] = await db
-    .delete(questionsTable)
-    .where(eq(questionsTable.id, id))
-    .returning();
-
-  if (!deleted) {
+  const [existing] = await db
+    .select()
+    .from(questionsTable)
+    .where(eq(questionsTable.id, id));
+  if (!existing) {
     res.status(404).json({ error: "Question not found" });
     return;
   }
+  if (existing.teamId !== teamId) {
+    res.status(403).json({ error: "Cannot delete a question owned by another team or a global template" });
+    return;
+  }
 
+  await db.delete(questionsTable).where(eq(questionsTable.id, id));
   res.json({ success: true });
 });
 
@@ -175,6 +204,7 @@ router.get("/questions/session", requireTeam, async (req, res): Promise<void> =>
   const allQuestions = await db
     .select()
     .from(questionsTable)
+    .where(questionsVisibleToTeam(teamId))
     .orderBy(asc(questionsTable.order));
 
   const filteredQuestions = allQuestions.filter((q) => {
