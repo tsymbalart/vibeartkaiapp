@@ -15,6 +15,13 @@
       "when": 1775741800000,
       "tag": "0001_add_reminder_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1775742600000,
+      "tag": "0002_seed_global_questions",
+      "breakpoints": true
     }
   ]
 }
