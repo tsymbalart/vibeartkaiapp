@@ -25,8 +25,13 @@ import {
   BiSolidCrown,
   BiSolidUser,
   BiCopy,
+  BiChevronLeft,
+  BiChevronRight,
+  BiSolidBell,
 } from "react-icons/bi";
 import { useAuth } from "@/context/AuthContext";
+
+// ── Types ─────────────────────────────────────────────────────
 
 interface SubTeam {
   id: number;
@@ -61,7 +66,20 @@ interface PulseSettings {
   sessionSize: number;
   pillarWeights: Record<string, string>;
   scoringMode: string;
+  reminderEnabled: boolean;
+  reminderDay: number;
+  reminderHour: number;
 }
+
+interface AllowedEmail {
+  id: number;
+  email: string;
+  teamId: number | null;
+  invitedByUserId: number | null;
+  createdAt: string;
+}
+
+// ── Constants ─────────────────────────────────────────────────
 
 const SUB_TEAM_COLORS = [
   "#6366f1",
@@ -74,13 +92,15 @@ const SUB_TEAM_COLORS = [
   "#14b8a6",
 ];
 
-interface AllowedEmail {
-  id: number;
-  email: string;
-  teamId: number | null;
-  invitedByUserId: number | null;
-  createdAt: string;
+const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+function formatHour(hour: number) {
+  const period = hour < 12 ? "AM" : "PM";
+  const h = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+  return `${h}:00 ${period}`;
 }
+
+// ── Sub-components (unchanged) ────────────────────────────────
 
 function AllowedEmailsSection() {
   const [newEmail, setNewEmail] = useState("");
@@ -218,6 +238,7 @@ function ScoringSection({ settings, onUpdate }: { settings: PulseSettings; onUpd
               ? "border-primary/40 bg-primary/5"
               : "border-border/60 hover:border-border"
           )}
+          data-testid="button-scoring-latest"
         >
           <div className={cn(
             "w-5 h-5 rounded-lg border-2 flex items-center justify-center mt-0.5 shrink-0 transition-colors",
@@ -242,6 +263,7 @@ function ScoringSection({ settings, onUpdate }: { settings: PulseSettings; onUpd
               ? "border-primary/40 bg-primary/5"
               : "border-border/60 hover:border-border"
           )}
+          data-testid="button-scoring-average"
         >
           <div className={cn(
             "w-5 h-5 rounded-lg border-2 flex items-center justify-center mt-0.5 shrink-0 transition-colors",
@@ -258,6 +280,110 @@ function ScoringSection({ settings, onUpdate }: { settings: PulseSettings; onUpd
             </p>
           </div>
         </button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function RemindersSection({ settings, onUpdate }: { settings: PulseSettings; onUpdate: (updates: Partial<PulseSettings>) => void }) {
+  const [enabled, setEnabled] = useState(settings.reminderEnabled);
+  const [day, setDay] = useState(settings.reminderDay);
+  const [hour, setHour] = useState(settings.reminderHour);
+  const [dirty, setDirty] = useState(false);
+
+  useEffect(() => {
+    setEnabled(settings.reminderEnabled);
+    setDay(settings.reminderDay);
+    setHour(settings.reminderHour);
+    setDirty(false);
+  }, [settings.reminderEnabled, settings.reminderDay, settings.reminderHour]);
+
+  const markDirty = (updates: { enabled?: boolean; day?: number; hour?: number }) => {
+    if (updates.enabled !== undefined) setEnabled(updates.enabled);
+    if (updates.day !== undefined) setDay(updates.day);
+    if (updates.hour !== undefined) setHour(updates.hour);
+    setDirty(true);
+  };
+
+  return (
+    <Card className="rounded-2xl border-border/60 shadow-sm">
+      <CardHeader className="pb-3">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
+            <BiSolidBell className="w-4.5 h-4.5 text-primary" />
+          </div>
+          <div>
+            <CardTitle className="text-base font-medium">Email Reminders</CardTitle>
+            <p className="text-xs text-muted-foreground mt-0.5">Weekly nudges to complete check-ins</p>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium">Send weekly reminders</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Prompt all team members to submit check-ins</p>
+          </div>
+          <button
+            onClick={() => markDirty({ enabled: !enabled })}
+            className={cn(
+              "relative shrink-0 w-11 h-6 rounded-full transition-colors",
+              enabled ? "bg-primary" : "bg-muted"
+            )}
+            data-testid="toggle-reminders"
+            aria-checked={enabled}
+            role="switch"
+          >
+            <div className={cn(
+              "absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform",
+              enabled ? "translate-x-6" : "translate-x-1"
+            )} />
+          </button>
+        </div>
+
+        {enabled && (
+          <div className="grid grid-cols-2 gap-3 pt-4 border-t border-border/60">
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1.5">Day</label>
+              <select
+                value={day}
+                onChange={(e) => markDirty({ day: Number(e.target.value) })}
+                className="w-full h-9 px-3 rounded-lg border border-border bg-background text-sm outline-none"
+                data-testid="select-reminder-day"
+              >
+                {DAY_NAMES.map((name, i) => (
+                  <option key={i} value={i}>{name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1.5">Time</label>
+              <select
+                value={hour}
+                onChange={(e) => markDirty({ hour: Number(e.target.value) })}
+                className="w-full h-9 px-3 rounded-lg border border-border bg-background text-sm outline-none"
+                data-testid="select-reminder-hour"
+              >
+                {Array.from({ length: 24 }, (_, h) => (
+                  <option key={h} value={h}>{formatHour(h)}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
+
+        {dirty && (
+          <div className="flex justify-end pt-1">
+            <Button
+              size="sm"
+              onClick={() => onUpdate({ reminderEnabled: enabled, reminderDay: day, reminderHour: hour })}
+              className="rounded-lg text-xs"
+              data-testid="button-save-reminders"
+            >
+              Save reminders
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -320,8 +446,8 @@ function TeammatesSection({ users, subTeams }: { users: TeamUser[]; subTeams: Su
             <BiSolidGroup className="w-4.5 h-4.5 text-primary" />
           </div>
           <div>
-            <CardTitle className="text-base font-medium">Teammates</CardTitle>
-            <p className="text-xs text-muted-foreground mt-0.5">{users.length} members · Assign to teams &amp; projects</p>
+            <CardTitle className="text-base font-medium">Assignments</CardTitle>
+            <p className="text-xs text-muted-foreground mt-0.5">{users.length} members · Assign to sub-teams</p>
           </div>
         </div>
       </CardHeader>
@@ -392,7 +518,7 @@ function TeammatesSection({ users, subTeams }: { users: TeamUser[]; subTeams: Su
                 )}
                 {isExpanded && subTeams.length === 0 && (
                   <div className="ml-14 mr-3 mb-2">
-                    <p className="text-xs text-muted-foreground/60">Create sub-teams above first, then assign members here</p>
+                    <p className="text-xs text-muted-foreground/60">Create sub-teams first, then assign members here</p>
                   </div>
                 )}
               </div>
@@ -476,7 +602,7 @@ function SubTeamsSection({ subTeams }: { subTeams: SubTeam[] }) {
   return (
     <Card className="rounded-2xl border-border/60 shadow-sm">
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
               <BiSolidLayer className="w-4.5 h-4.5 text-primary" />
@@ -495,6 +621,7 @@ function SubTeamsSection({ subTeams }: { subTeams: SubTeam[] }) {
                 setNewColor(SUB_TEAM_COLORS[subTeams.length % SUB_TEAM_COLORS.length]);
               }}
               className="rounded-xl h-8 text-xs gap-1.5"
+              data-testid="button-add-subteam"
             >
               <BiPlus className="w-3.5 h-3.5" />
               Add
@@ -551,6 +678,7 @@ function SubTeamsSection({ subTeams }: { subTeams: SubTeam[] }) {
               <div
                 key={st.id}
                 className="flex items-center justify-between py-2.5 px-3 rounded-xl hover:bg-secondary/50 transition-colors group"
+                data-testid={`subteam-${st.id}`}
               >
                 <div className="flex items-center gap-3">
                   <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: st.color }} />
@@ -603,6 +731,7 @@ function SubTeamsSection({ subTeams }: { subTeams: SubTeam[] }) {
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && newName.trim()) createSubTeam.mutate();
                 }}
+                data-testid="input-subteam-name"
               />
               <Button
                 size="sm"
@@ -673,23 +802,25 @@ function TeamMembersManagement({ members, invitations }: { members: TeamUser[]; 
   const [bulkResults, setBulkResults] = useState<BulkResult[] | null>(null);
   const emailInputRef = useRef<HTMLInputElement>(null);
 
-  const pendingInvites = invitations.filter((i) => i.status === "pending");
+  const pendingInvites = invitations.filter((inv) => inv.status === "pending");
 
   const copyInviteLink = (inv: Invitation) => {
-    const link = `${window.location.origin}/api/claim-invite?token=${encodeURIComponent(inv.token)}`;
+    const link = `${window.location.origin}/join?token=${inv.token}`;
     navigator.clipboard.writeText(link).then(() => {
       setCopiedId(inv.id);
       setTimeout(() => setCopiedId(null), 2000);
     });
   };
 
-  /** Parse raw text into valid email tags, deduplicating against existing tags. */
   const addEmailsFromText = (text: string) => {
-    const parts = text.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
-    const valid = parts.filter((e) => e.includes("@") && !inviteEmails.includes(e));
-    if (valid.length > 0) {
-      setInviteEmails((prev) => [...prev, ...valid]);
-    }
+    const parts = text.split(/[,\s]+/).map((s) => s.trim()).filter((s) => s.length > 0);
+    setInviteEmails((prev) => {
+      const next = [...prev];
+      for (const p of parts) {
+        if (!next.includes(p)) next.push(p);
+      }
+      return next;
+    });
   };
 
   const removeEmail = (email: string) => {
@@ -705,7 +836,6 @@ function TeamMembersManagement({ members, invitations }: { members: TeamUser[]; 
         setEmailInput("");
       }
     }
-    // Backspace removes the last tag when the input is empty
     if (e.key === "Backspace" && emailInput === "" && inviteEmails.length > 0) {
       setInviteEmails((prev) => prev.slice(0, -1));
     }
@@ -785,7 +915,6 @@ function TeamMembersManagement({ members, invitations }: { members: TeamUser[]; 
       queryClient.invalidateQueries({ queryKey: ["invitations"] });
       setBulkResults(data.results);
 
-      // Remove successfully invited emails from the tag list
       const succeededEmails = new Set(
         data.results.filter((r) => r.status === "created").map((r) => r.email)
       );
@@ -801,7 +930,6 @@ function TeamMembersManagement({ members, invitations }: { members: TeamUser[]; 
         });
       }
 
-      // Close form if everything succeeded
       if (remaining.length === 0) {
         setShowInviteForm(false);
         setInviteRole("member");
@@ -851,7 +979,7 @@ function TeamMembersManagement({ members, invitations }: { members: TeamUser[]; 
   return (
     <Card className="rounded-2xl border-border/60 shadow-sm">
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
               <BiSolidGroup className="w-4.5 h-4.5 text-primary" />
@@ -866,6 +994,7 @@ function TeamMembersManagement({ members, invitations }: { members: TeamUser[]; 
             size="sm"
             className="rounded-xl gap-1.5 text-xs"
             onClick={() => setShowInviteForm(!showInviteForm)}
+            data-testid="button-invite-member"
           >
             <BiSolidEnvelope className="w-3.5 h-3.5" />
             Invite
@@ -877,7 +1006,6 @@ function TeamMembersManagement({ members, invitations }: { members: TeamUser[]; 
           <div className="p-4 rounded-xl bg-secondary/50 space-y-3">
             <p className="text-sm font-medium">Invite team members</p>
             <div className="flex gap-2">
-              {/* Tag input container */}
               <div
                 className="flex-1 flex flex-wrap items-center gap-1.5 min-h-[38px] px-2.5 py-1.5 rounded-lg border border-border bg-background cursor-text"
                 onClick={() => emailInputRef.current?.focus()}
@@ -930,7 +1058,6 @@ function TeamMembersManagement({ members, invitations }: { members: TeamUser[]; 
                 ))}
               </select>
             </div>
-            {/* Per-email error details */}
             {bulkResults && bulkResults.some((r) => r.status === "error") && (
               <div className="space-y-1">
                 {bulkResults.filter((r) => r.status === "error").map((r) => (
@@ -954,6 +1081,7 @@ function TeamMembersManagement({ members, invitations }: { members: TeamUser[]; 
                 className="rounded-lg text-xs gap-1.5"
                 onClick={() => sendBulkInvites.mutate()}
                 disabled={inviteEmails.length === 0 || sendBulkInvites.isPending}
+                data-testid="button-send-invites"
               >
                 <BiSolidEnvelope className="w-3 h-3" />
                 {sendBulkInvites.isPending
@@ -1006,7 +1134,7 @@ function TeamMembersManagement({ members, invitations }: { members: TeamUser[]; 
 
         <div className="space-y-1">
           {members.map((member) => (
-            <div key={member.id} className="flex items-center justify-between py-2.5 px-3 rounded-xl hover:bg-secondary/50 transition-colors">
+            <div key={member.id} className="flex items-center justify-between py-2.5 px-3 rounded-xl hover:bg-secondary/50 transition-colors" data-testid={`member-${member.id}`}>
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
                   <MemberRoleIcon role={member.role} />
@@ -1072,10 +1200,24 @@ function TeamMembersManagement({ members, invitations }: { members: TeamUser[]; 
   );
 }
 
+// ── Main Settings page ────────────────────────────────────────
+
+type SettingsView = "home" | "team" | "pulse" | "access";
+type TeamSubView = "members" | "subteams" | "assignments";
+
+const CATEGORY_LABELS: Record<SettingsView, string> = {
+  home:   "Settings",
+  team:   "Team",
+  pulse:  "Pulse",
+  access: "Access",
+};
+
 export default function Settings() {
   const { role } = useRole();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [view, setView] = useState<SettingsView>("home");
+  const [teamSubView, setTeamSubView] = useState<TeamSubView>("members");
 
   const { data: settings } = useQuery<PulseSettings>({
     queryKey: ["pulse-settings"],
@@ -1100,6 +1242,12 @@ export default function Settings() {
   const { data: invitations = [] } = useQuery<Invitation[]>({
     queryKey: ["invitations"],
     queryFn: () => apiFetch("/api/invitations"),
+  });
+
+  const { data: allowedEmails = [] } = useQuery<AllowedEmail[]>({
+    queryKey: ["allowed-emails"],
+    queryFn: () => apiFetch<AllowedEmail[]>("/api/allowed-emails"),
+    enabled: role === "director",
   });
 
   const updateSettings = useMutation({
@@ -1145,26 +1293,168 @@ export default function Settings() {
     );
   }
 
+  const pendingInvitations = invitations.filter((i) => i.status === "pending");
+  const scoringLabel = settings.scoringMode === "average_all" ? "Average all responses" : "Latest response only";
+  const reminderLabel = settings.reminderEnabled
+    ? `Every ${DAY_NAMES[settings.reminderDay ?? 1]} at ${formatHour(settings.reminderHour ?? 9)}`
+    : "Reminders off";
+
+  const goBack = () => setView("home");
+
   return (
     <AppLayout>
-      <div className="max-w-2xl mx-auto space-y-6 pb-16">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-medium tracking-tight">Settings</h1>
-          <p className="text-sm text-muted-foreground">Configure scoring, manage teammates, and organize sub-teams</p>
+      <div className="max-w-2xl mx-auto pb-16">
+
+        {/* ── Breadcrumb header ─────────────────────────────── */}
+        <div className="flex items-center gap-2 mb-6">
+          {view !== "home" && (
+            <>
+              <button
+                onClick={goBack}
+                className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                data-testid="button-settings-back"
+              >
+                <BiChevronLeft className="w-4 h-4" />
+                Settings
+              </button>
+              <span className="text-muted-foreground/40 text-sm">/</span>
+              <span className="text-sm font-medium text-foreground">{CATEGORY_LABELS[view]}</span>
+            </>
+          )}
+          {view === "home" && (
+            <div className="space-y-0.5">
+              <h1 className="text-2xl font-medium tracking-tight">Settings</h1>
+              <p className="text-sm text-muted-foreground">Manage your team, pulse logic, and access control</p>
+            </div>
+          )}
         </div>
 
-        <TeamMembersManagement members={teamMembers} invitations={invitations} />
+        {/* ── Home grid ─────────────────────────────────────── */}
+        {view === "home" && (
+          <div className="space-y-3">
+            {/* Team */}
+            <button
+              onClick={() => setView("team")}
+              className="w-full flex items-center gap-4 p-5 rounded-2xl border border-border/60 bg-card hover-elevate transition-all text-left group"
+              data-testid="button-settings-team"
+            >
+              <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                <BiSolidGroup className="w-5 h-5 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-base font-medium text-foreground">Team</p>
+                <p className="text-sm text-muted-foreground mt-0.5">Members, roles, and sub-team structure</p>
+                <div className="flex flex-wrap gap-3 mt-1.5">
+                  <span className="text-xs text-muted-foreground">{teamMembers.length} active</span>
+                  {pendingInvitations.length > 0 && (
+                    <span className="text-xs text-muted-foreground">{pendingInvitations.length} pending</span>
+                  )}
+                  <span className="text-xs text-muted-foreground">{subTeams.length} sub-team{subTeams.length !== 1 ? "s" : ""}</span>
+                </div>
+              </div>
+              <BiChevronRight className="w-5 h-5 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors shrink-0" />
+            </button>
 
-        <ScoringSection
-          settings={settings}
-          onUpdate={(mode) => updateSettings.mutate({ scoringMode: mode })}
-        />
+            {/* Pulse */}
+            <button
+              onClick={() => setView("pulse")}
+              className="w-full flex items-center gap-4 p-5 rounded-2xl border border-border/60 bg-card hover-elevate transition-all text-left group"
+              data-testid="button-settings-pulse"
+            >
+              <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                <BiSolidCalculator className="w-5 h-5 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-base font-medium text-foreground">Pulse</p>
+                <p className="text-sm text-muted-foreground mt-0.5">Scoring logic and reminder schedule</p>
+                <div className="flex flex-wrap gap-3 mt-1.5">
+                  <span className="text-xs text-muted-foreground">Scoring: {scoringLabel}</span>
+                  <span className="text-xs text-muted-foreground">{reminderLabel}</span>
+                </div>
+              </div>
+              <BiChevronRight className="w-5 h-5 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors shrink-0" />
+            </button>
 
-        <SubTeamsSection subTeams={subTeams} />
+            {/* Access — director only */}
+            {role === "director" && (
+              <button
+                onClick={() => setView("access")}
+                className="w-full flex items-center gap-4 p-5 rounded-2xl border border-border/60 bg-card hover-elevate transition-all text-left group"
+                data-testid="button-settings-access"
+              >
+                <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                  <BiSolidEnvelope className="w-5 h-5 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-base font-medium text-foreground">Access</p>
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5">Director only</Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-0.5">Control who can sign in to Artkai Pulse</p>
+                  <div className="mt-1.5">
+                    <span className="text-xs text-muted-foreground">
+                      {allowedEmails.length} allowed email{allowedEmails.length !== 1 ? "s" : ""} / domain{allowedEmails.length !== 1 ? "s" : ""}
+                    </span>
+                  </div>
+                </div>
+                <BiChevronRight className="w-5 h-5 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors shrink-0" />
+              </button>
+            )}
+          </div>
+        )}
 
-        <TeammatesSection users={users} subTeams={subTeams} />
+        {/* ── Team detail ───────────────────────────────────── */}
+        {view === "team" && (
+          <div>
+            {/* Sub-nav */}
+            <div className="flex p-1 bg-secondary/50 rounded-xl mb-6 w-fit gap-0.5">
+              {(["members", "subteams", "assignments"] as TeamSubView[]).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setTeamSubView(v)}
+                  className={cn(
+                    "px-4 py-1.5 rounded-lg text-sm font-medium transition-colors",
+                    teamSubView === v
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                  data-testid={`button-team-tab-${v}`}
+                >
+                  {v === "subteams" ? "Sub-teams" : v === "assignments" ? "Assignments" : "Members"}
+                </button>
+              ))}
+            </div>
 
-        {role === "director" && <AllowedEmailsSection />}
+            {teamSubView === "members" && (
+              <TeamMembersManagement members={teamMembers} invitations={invitations} />
+            )}
+            {teamSubView === "subteams" && (
+              <SubTeamsSection subTeams={subTeams} />
+            )}
+            {teamSubView === "assignments" && (
+              <TeammatesSection users={users} subTeams={subTeams} />
+            )}
+          </div>
+        )}
+
+        {/* ── Pulse detail ──────────────────────────────────── */}
+        {view === "pulse" && (
+          <div className="space-y-6">
+            <ScoringSection
+              settings={settings}
+              onUpdate={(mode) => updateSettings.mutate({ scoringMode: mode })}
+            />
+            <RemindersSection
+              settings={settings}
+              onUpdate={(updates) => updateSettings.mutate(updates)}
+            />
+          </div>
+        )}
+
+        {/* ── Access detail ─────────────────────────────────── */}
+        {view === "access" && role === "director" && (
+          <AllowedEmailsSection />
+        )}
       </div>
     </AppLayout>
   );
