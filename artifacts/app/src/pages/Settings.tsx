@@ -22,6 +22,7 @@ import {
   BiSolidShield,
   BiSolidCrown,
   BiSolidUser,
+  BiCopy,
 } from "react-icons/bi";
 import { useAuth } from "@/context/AuthContext";
 
@@ -47,6 +48,7 @@ interface Invitation {
   email: string;
   role: string;
   status: string;
+  token: string;
   expiresAt: string;
   createdAt: string;
 }
@@ -628,8 +630,19 @@ function TeamMembersManagement({ members, invitations }: { members: TeamUser[]; 
   const [inviteRole, setInviteRole] = useState("member");
   const [showInviteForm, setShowInviteForm] = useState(false);
   const [confirmRemoveId, setConfirmRemoveId] = useState<number | null>(null);
+  const [copiedId, setCopiedId] = useState<number | null>(null);
 
   const pendingInvites = invitations.filter((i) => i.status === "pending");
+
+  const copyInviteLink = (inv: Invitation) => {
+    // Build a tokenised claim URL. The callback consumes the token
+    // exactly once and binds the new user to the invited team+role.
+    const link = `${window.location.origin}/api/claim-invite?token=${encodeURIComponent(inv.token)}`;
+    navigator.clipboard.writeText(link).then(() => {
+      setCopiedId(inv.id);
+      setTimeout(() => setCopiedId(null), 2000);
+    });
+  };
 
   const changeRole = useMutation({
     mutationFn: async ({ id, role }: { id: number; role: string }) => {
@@ -807,9 +820,18 @@ function TeamMembersManagement({ members, invitations }: { members: TeamUser[]; 
                 </div>
                 <div className="flex items-center gap-1">
                   <button
+                    onClick={() => copyInviteLink(inv)}
+                    className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                    title="Copy invite link"
+                    aria-label={`Copy invitation link for ${inv.email}`}
+                  >
+                    {copiedId === inv.id ? <BiCheck className="w-4 h-4 text-emerald-500" /> : <BiCopy className="w-4 h-4" />}
+                  </button>
+                  <button
                     onClick={() => cancelInvite.mutate(inv.id)}
                     className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
                     title="Cancel invitation"
+                    aria-label={`Cancel invitation for ${inv.email}`}
                   >
                     <BiX className="w-4 h-4" />
                   </button>

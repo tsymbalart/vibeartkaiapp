@@ -35,6 +35,15 @@ export default function Login() {
             </p>
           </div>
         )}
+        {authError === "invalid_invite" && (
+          <div className="p-4 rounded-xl border border-destructive/30 bg-destructive/10 text-left space-y-1.5">
+            <p className="text-sm font-medium text-destructive">Invitation expired</p>
+            <p className="text-xs text-destructive/80 leading-relaxed">
+              The invitation link is invalid, already used, or expired. Ask a director
+              to send you a fresh invitation.
+            </p>
+          </div>
+        )}
 
         <button
           onClick={() => login("/")}

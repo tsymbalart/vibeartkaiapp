@@ -15,6 +15,10 @@ import {
 } from "../lib/auth";
 
 const OIDC_COOKIE_TTL = 10 * 60 * 1000;
+// Pending invite token cookie survives the round-trip through Google
+// OAuth (up to 15 minutes). It is consumed exactly once in /callback.
+const PENDING_INVITE_COOKIE = "pending_invite_token";
+const PENDING_INVITE_TTL = 15 * 60 * 1000;
 
 const router: IRouter = Router();
 
@@ -45,6 +49,20 @@ function setTempCookie(res: Response, name: string, value: string) {
   });
 }
 
+function setPendingInviteCookie(res: Response, token: string) {
+  res.cookie(PENDING_INVITE_COOKIE, token, {
+    httpOnly: true,
+    secure: true,
+    sameSite: "none",
+    path: "/",
+    maxAge: PENDING_INVITE_TTL,
+  });
+}
+
+function clearPendingInviteCookie(res: Response) {
+  res.clearCookie(PENDING_INVITE_COOKIE, { path: "/" });
+}
+
 function getSafeReturnTo(value: unknown): string {
   if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) {
     return "/";
@@ -69,7 +87,45 @@ function normalizeEmail(email: string | null | undefined): string | null {
   return trimmed || null;
 }
 
-async function consumePendingInvitation(email: string): Promise<{ teamId: number | null; role: string } | null> {
+interface PendingInvite {
+  id: number;
+  teamId: number | null;
+  role: string;
+  email: string;
+}
+
+/**
+ * Look up a pending invitation by its one-time token. Tokens are single
+ * use; once accepted we flip status to "accepted" and the row cannot
+ * be reused. Expired tokens are ignored.
+ */
+async function lookupInvitationByToken(token: string): Promise<PendingInvite | null> {
+  if (typeof token !== "string" || token.length < 16) return null;
+  const [invitation] = await db
+    .select()
+    .from(invitationsTable)
+    .where(
+      and(
+        eq(invitationsTable.token, token),
+        eq(invitationsTable.status, "pending")
+      )
+    );
+  if (!invitation) return null;
+  if (invitation.expiresAt && new Date(invitation.expiresAt) <= new Date()) return null;
+  return {
+    id: invitation.id,
+    teamId: invitation.teamId,
+    role: invitation.role,
+    email: invitation.email,
+  };
+}
+
+/**
+ * Look up a pending invitation for a given email address. Used as the
+ * legacy "invite-by-email" path when the signin callback isn't
+ * accompanied by a claim token.
+ */
+async function lookupInvitationByEmail(email: string): Promise<PendingInvite | null> {
   const normalized = normalizeEmail(email);
   if (!normalized) return null;
   const [invitation] = await db
@@ -81,16 +137,21 @@ async function consumePendingInvitation(email: string): Promise<{ teamId: number
         eq(invitationsTable.status, "pending")
       )
     );
-
   if (!invitation) return null;
   if (invitation.expiresAt && new Date(invitation.expiresAt) <= new Date()) return null;
+  return {
+    id: invitation.id,
+    teamId: invitation.teamId,
+    role: invitation.role,
+    email: invitation.email,
+  };
+}
 
+async function markInvitationAccepted(id: number): Promise<void> {
   await db
     .update(invitationsTable)
     .set({ status: "accepted" })
-    .where(eq(invitationsTable.id, invitation.id));
-
-  return { teamId: invitation.teamId, role: invitation.role };
+    .where(eq(invitationsTable.id, id));
 }
 
 async function lookupAllowedEmail(email: string): Promise<{ teamId: number | null } | null> {
@@ -105,13 +166,59 @@ async function lookupAllowedEmail(email: string): Promise<{ teamId: number | nul
 }
 
 /**
+ * Resolve which (teamId, role) the sign-in should be admitted to.
+ * Precedence:
+ *   1. A token-claimed invitation stored in the signed request cookie
+ *      (`pending_invite_token`). Strongest: binds the session to the
+ *      exact invitation link the user clicked, even if their Google
+ *      email differs from what was invited.
+ *   2. An invitation pending against the (verified) Google email.
+ *   3. A row in `allowed_emails` for the (verified) Google email.
+ * Returns null if none apply — the caller should refuse to create a
+ * user row.
+ */
+async function resolveInvite(
+  email: string | null,
+  pendingToken: string | null,
+): Promise<{ teamId: number; role: string; invitationId: number | null } | null> {
+  if (pendingToken) {
+    const byToken = await lookupInvitationByToken(pendingToken);
+    if (byToken?.teamId != null) {
+      return {
+        teamId: byToken.teamId,
+        role: byToken.role,
+        invitationId: byToken.id,
+      };
+    }
+  }
+  if (email) {
+    const byEmail = await lookupInvitationByEmail(email);
+    if (byEmail?.teamId != null) {
+      return {
+        teamId: byEmail.teamId,
+        role: byEmail.role,
+        invitationId: byEmail.id,
+      };
+    }
+    const allowed = await lookupAllowedEmail(email);
+    if (allowed?.teamId != null) {
+      return { teamId: allowed.teamId, role: "member", invitationId: null };
+    }
+  }
+  return null;
+}
+
+/**
  * Look up an existing user row or create one for a newly signed-in Google
  * account, but ONLY if the account has been authorised (a pending invitation
  * or an entry in `allowed_emails`). Returns `null` for un-authorised
  * sign-ins so the caller can redirect the user to an error screen without
  * creating an orphan `users` row.
  */
-async function upsertUser(claims: { sub: string; email?: string; email_verified?: boolean; name?: string; picture?: string }): Promise<typeof usersTable.$inferSelect | null> {
+async function upsertUser(
+  claims: { sub: string; email?: string; email_verified?: boolean; name?: string; picture?: string },
+  pendingToken: string | null,
+): Promise<typeof usersTable.$inferSelect | null> {
   const googleId = claims.sub;
   const emailVerified = claims.email_verified === true;
   const email = emailVerified ? normalizeEmail(claims.email || null) : null;
@@ -131,14 +238,14 @@ async function upsertUser(claims: { sub: string; email?: string; email_verified?
       updatedAt: new Date(),
     };
 
-    if (!existingByGoogleId.teamId && email) {
-      const inv = await consumePendingInvitation(email);
-      if (inv) {
-        updates.teamId = inv.teamId;
-        updates.role = inv.role;
-      } else {
-        const allowed = await lookupAllowedEmail(email);
-        if (allowed?.teamId) updates.teamId = allowed.teamId;
+    if (!existingByGoogleId.teamId) {
+      const resolved = await resolveInvite(email, pendingToken);
+      if (resolved) {
+        updates.teamId = resolved.teamId;
+        updates.role = resolved.role;
+        if (resolved.invitationId != null) {
+          await markInvitationAccepted(resolved.invitationId);
+        }
       }
     }
 
@@ -165,13 +272,13 @@ async function upsertUser(claims: { sub: string; email?: string; email_verified?
       };
 
       if (!existingByEmail.teamId) {
-        const inv = await consumePendingInvitation(email);
-        if (inv) {
-          updates.teamId = inv.teamId;
-          updates.role = inv.role;
-        } else {
-          const allowed = await lookupAllowedEmail(email);
-          if (allowed?.teamId) updates.teamId = allowed.teamId;
+        const resolved = await resolveInvite(email, pendingToken);
+        if (resolved) {
+          updates.teamId = resolved.teamId;
+          updates.role = resolved.role;
+          if (resolved.invitationId != null) {
+            await markInvitationAccepted(resolved.invitationId);
+          }
         }
       }
 
@@ -184,28 +291,33 @@ async function upsertUser(claims: { sub: string; email?: string; email_verified?
     }
   }
 
-  // New user: must be invited or on the allowlist. Otherwise do NOT create
-  // a row — an un-authorised signup is a silent security hole.
+  // New user: must be invited or on the allowlist. Otherwise do NOT
+  // create a row — an un-authorised signup is a silent security hole.
+  const resolved = await resolveInvite(email, pendingToken);
+  if (!resolved) return null;
   if (!email) {
-    return null;
-  }
-
-  let teamId: number | null = null;
-  let role = "member";
-
-  const inv = await consumePendingInvitation(email);
-  if (inv) {
-    teamId = inv.teamId;
-    role = inv.role;
-  } else {
-    const allowed = await lookupAllowedEmail(email);
-    if (allowed?.teamId) {
-      teamId = allowed.teamId;
-    }
-  }
-
-  if (teamId == null) {
-    return null;
+    // We need *some* email to persist; if the Google account refused
+    // to share one and the invite lookup came via token, fall back
+    // to the email stored on the invitation row.
+    if (resolved.invitationId == null) return null;
+    const [invite] = await db
+      .select()
+      .from(invitationsTable)
+      .where(eq(invitationsTable.id, resolved.invitationId));
+    if (!invite?.email) return null;
+    const [newUser] = await db
+      .insert(usersTable)
+      .values({
+        name: displayName,
+        email: invite.email,
+        googleId,
+        avatarUrl,
+        role: resolved.role,
+        teamId: resolved.teamId,
+      })
+      .returning();
+    await markInvitationAccepted(resolved.invitationId);
+    return newUser;
   }
 
   const [newUser] = await db
@@ -215,10 +327,14 @@ async function upsertUser(claims: { sub: string; email?: string; email_verified?
       email,
       googleId,
       avatarUrl,
-      role,
-      teamId,
+      role: resolved.role,
+      teamId: resolved.teamId,
     })
     .returning();
+
+  if (resolved.invitationId != null) {
+    await markInvitationAccepted(resolved.invitationId);
+  }
 
   return newUser;
 }
@@ -240,6 +356,37 @@ router.get("/auth/user", async (req: Request, res: Response) => {
   }
 
   res.json({ user: toAppUser(freshUser) });
+});
+
+/**
+ * Entry point for tokenised invitation links. A director creates an
+ * invitation via `POST /api/invitations`, copies the resulting claim
+ * URL into an email to the invitee, and the invitee follows it here.
+ *
+ * This endpoint validates the token (ensuring it exists, is pending,
+ * and hasn't expired), stores it in a short-lived cookie, then kicks
+ * the invitee into the Google sign-in flow. The callback consumes
+ * the cookie, binds the new user to the invited team + role, and
+ * marks the invitation as accepted.
+ *
+ * The token itself is NOT rendered into any HTML — it only travels
+ * in the URL query string and in the httpOnly cookie.
+ */
+router.get("/claim-invite", async (req: Request, res: Response) => {
+  const token = typeof req.query.token === "string" ? req.query.token : null;
+  if (!token) {
+    res.redirect("/?auth_error=invalid_invite");
+    return;
+  }
+  const invite = await lookupInvitationByToken(token);
+  if (!invite) {
+    res.redirect("/?auth_error=invalid_invite");
+    return;
+  }
+  setPendingInviteCookie(res, token);
+  // Send the invitee through the normal login flow; the callback
+  // will pick up the pending_invite_token cookie and consume it.
+  res.redirect(`/api/login?returnTo=${encodeURIComponent("/")}`);
 });
 
 router.get("/login", async (req: Request, res: Response) => {
@@ -325,17 +472,25 @@ router.get("/callback", async (req: Request, res: Response) => {
   }
 
   const returnTo = getSafeReturnTo(req.cookies?.return_to);
+  const pendingToken =
+    typeof req.cookies?.[PENDING_INVITE_COOKIE] === "string"
+      ? req.cookies[PENDING_INVITE_COOKIE]
+      : null;
 
   res.clearCookie("oauth_state", { path: "/" });
   res.clearCookie("return_to", { path: "/" });
+  clearPendingInviteCookie(res);
 
-  const dbUser = await upsertUser({
-    sub: payload.sub,
-    email: payload.email,
-    email_verified: payload.email_verified,
-    name: payload.name,
-    picture: payload.picture,
-  });
+  const dbUser = await upsertUser(
+    {
+      sub: payload.sub,
+      email: payload.email,
+      email_verified: payload.email_verified,
+      name: payload.name,
+      picture: payload.picture,
+    },
+    pendingToken,
+  );
 
   if (!dbUser) {
     // Email is not on the allowlist and has no pending invitation.
