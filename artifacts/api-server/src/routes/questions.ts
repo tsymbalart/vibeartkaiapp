@@ -4,6 +4,7 @@ import { eq, asc, and, or, inArray, isNull, desc, sql } from "drizzle-orm";
 import { requireTeam, requireRole } from "../middlewares/requireAuth";
 import { intParam } from "../lib/params";
 import { questionsVisibleToTeam } from "../lib/questionScope";
+import { invalidateQuestions } from "../lib/questionCache";
 
 const router: IRouter = Router();
 
@@ -96,6 +97,7 @@ router.post("/questions", requireRole("lead", "director"), async (req, res): Pro
     return row;
   });
 
+  invalidateQuestions(teamId);
   res.status(201).json(created);
 });
 
@@ -162,6 +164,7 @@ router.put("/questions/:id", requireRole("lead", "director"), async (req, res): 
     .where(eq(questionsTable.id, id))
     .returning();
 
+  invalidateQuestions(teamId);
   res.json(updated);
 });
 
@@ -187,6 +190,7 @@ router.delete("/questions/:id", requireRole("lead", "director"), async (req, res
   }
 
   await db.delete(questionsTable).where(eq(questionsTable.id, id));
+  invalidateQuestions(teamId);
   res.json({ success: true });
 });
 

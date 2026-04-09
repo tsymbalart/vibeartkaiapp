@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, teamsTable, usersTable, checkInsTable, responsesTable, questionsTable, pulseSettingsTable, userSubTeamsTable } from "@workspace/db";
-import { eq, desc, gte, count, and, inArray, isNotNull, ne, sql } from "drizzle-orm";
+import { eq, desc, gte, and, inArray, sql } from "drizzle-orm";
 import {
   ALL_PILLARS,
   PILLAR_WEIGHTS,
@@ -10,7 +10,7 @@ import {
   computeTrend,
 } from "../lib/scoring";
 import { requireTeam, requireLeadOrDirector } from "../middlewares/requireAuth";
-import { questionsVisibleToTeam } from "../lib/questionScope";
+import { getCachedQuestionsForTeam } from "../lib/questionCache";
 
 const router: IRouter = Router();
 
@@ -64,10 +64,7 @@ async function computePillarScores(windowDays: number, teamId: number, subTeamUs
     );
   const prevOnlyCheckIns = prevCheckIns.filter((c) => c.createdAt < windowStart);
 
-  const allQuestions = await db
-    .select()
-    .from(questionsTable)
-    .where(questionsVisibleToTeam(teamId));
+  const allQuestions = await getCachedQuestionsForTeam(teamId);
   const questionMap = new Map(allQuestions.map((q) => [q.id, q]));
   const questionsByPillar = new Map<string, typeof allQuestions>();
   for (const q of allQuestions) {
@@ -226,10 +223,7 @@ router.get("/dashboard", requireTeam, async (req, res): Promise<void> => {
         .from(responsesTable)
         .where(inArray(responsesTable.checkInId, ciIds));
 
-      const allQuestions = await db
-        .select()
-        .from(questionsTable)
-        .where(questionsVisibleToTeam(teamId));
+      const allQuestions = await getCachedQuestionsForTeam(teamId);
       const questionMap = new Map(allQuestions.map((q) => [q.id, q]));
 
       personalPillarScores = ALL_PILLARS.map((pillar) => {
@@ -433,10 +427,7 @@ router.get("/my-journey", requireTeam, async (req, res): Promise<void> => {
     }
   }
 
-  const allQuestions = await db
-    .select()
-    .from(questionsTable)
-    .where(questionsVisibleToTeam(teamId));
+  const allQuestions = await getCachedQuestionsForTeam(teamId);
   const questionMap = new Map(allQuestions.map((q) => [q.id, q]));
 
   const ciIds = userCheckIns.map((c) => c.id);
@@ -604,32 +595,26 @@ router.get("/team-summary", requireLeadOrDirector, async (req, res): Promise<voi
   const uniqueRespondents = new Set(completedCheckIns.map((c) => c.userId));
   const participationRate = filteredMemberCount > 0 ? Math.round((uniqueRespondents.size / filteredMemberCount) * 100) : 0;
 
-  const trendChart: { date: string; value: number }[] = [];
-  const weeks = Math.ceil(days / 7);
-  for (let w = weeks - 1; w >= 0; w--) {
-    const wStart = new Date();
-    wStart.setDate(wStart.getDate() - (w + 1) * 7);
-    const wEnd = new Date();
-    wEnd.setDate(wEnd.getDate() - w * 7);
-
-    const weekCheckIns = completedCheckIns.filter((c) => c.createdAt >= wStart && c.createdAt < wEnd);
-    if (weekCheckIns.length === 0) continue;
-
-    const ciIds = weekCheckIns.map((c) => c.id);
-    const responses = await db
-      .select()
-      .from(responsesTable)
-      .where(inArray(responsesTable.checkInId, ciIds));
-
-    const scored = responses.filter((r) => r.normalizedScore != null);
-    if (scored.length > 0) {
-      const avg = scored.reduce((s, r) => s + (r.normalizedScore ?? 0), 0) / scored.length;
-      trendChart.push({
-        date: wEnd.toISOString().split("T")[0],
-        value: Math.round(avg * 10) / 10,
-      });
-    }
-  }
+  // Weekly trend as a single SQL aggregate. Previously this loop ran
+  // one responses query per week (13 queries for a 90-day window).
+  const scopedUserIds = memberIds.length > 0 ? memberIds : [0];
+  const trendRows = await db.execute<{ week: string; avg: number }>(sql`
+    SELECT
+      to_char(date_trunc('week', c.created_at), 'YYYY-MM-DD') AS week,
+      AVG(r.normalized_score)::float AS avg
+    FROM check_ins c
+    JOIN responses r ON r.check_in_id = c.id
+    WHERE c.status = 'completed'
+      AND c.created_at >= ${windowStart}
+      AND c.user_id = ANY(${scopedUserIds}::int[])
+      AND r.normalized_score IS NOT NULL
+    GROUP BY week
+    ORDER BY week ASC
+  `);
+  const trendChart = (trendRows.rows as Array<{ week: string; avg: number }>).map((row) => ({
+    date: row.week,
+    value: Math.round((row.avg ?? 0) * 10) / 10,
+  }));
 
   const sorted = [...validPillars].sort((a, b) => b.score - a.score);
   const topStrengths = sorted.slice(0, 2).map((p) => `${PILLAR_LABELS[p.pillar] || p.pillar}: ${p.score.toFixed(0)}%`);

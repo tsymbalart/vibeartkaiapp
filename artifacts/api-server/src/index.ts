@@ -2,6 +2,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { db, teamsTable, usersTable, allowedEmailsTable } from "@workspace/db";
 import { runMigrations } from "@workspace/db/migrator";
+import { startSessionGC } from "./lib/sessionGC";
 import { eq } from "drizzle-orm";
 
 async function seedDefaults() {
@@ -123,6 +124,7 @@ async function bootstrap() {
   }
 
   await seedDefaults();
+  startSessionGC();
 
   app.listen(port, (err) => {
     if (err) {
