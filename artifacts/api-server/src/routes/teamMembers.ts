@@ -2,23 +2,34 @@ import { Router, type IRouter } from "express";
 import crypto from "crypto";
 import { db, usersTable, invitationsTable, userSubTeamsTable } from "@workspace/db";
 import { eq, and, inArray } from "drizzle-orm";
-import { requireTeam, requireRole } from "../middlewares/requireAuth";
+import { requireTeam, requireLeadOrDirector } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
 
+function normalizeEmail(email: unknown): string | null {
+  if (typeof email !== "string") return null;
+  const trimmed = email.trim().toLowerCase();
+  if (!trimmed.includes("@")) return null;
+  return trimmed;
+}
+
 router.get("/team/members", requireTeam, async (req, res): Promise<void> => {
   const user = req.user!;
-  if (!user.teamId) {
-    res.json([]);
-    return;
-  }
+  const isLead = user.role === "lead" || user.role === "director";
 
   const members = await db
     .select()
     .from(usersTable)
-    .where(eq(usersTable.teamId, user.teamId));
+    .where(eq(usersTable.teamId, user.teamId!));
 
-  const memberships = await db.select().from(userSubTeamsTable);
+  const memberIds = members.map((m) => m.id);
+  const memberships = memberIds.length > 0
+    ? await db
+        .select()
+        .from(userSubTeamsTable)
+        .where(inArray(userSubTeamsTable.userId, memberIds))
+    : [];
+
   const userSubTeamMap: Record<number, number[]> = {};
   for (const m of memberships) {
     if (!userSubTeamMap[m.userId]) userSubTeamMap[m.userId] = [];
@@ -26,25 +37,34 @@ router.get("/team/members", requireTeam, async (req, res): Promise<void> => {
   }
 
   res.json(
-    members.map((m) => ({
-      id: m.id,
-      name: m.name,
-      email: m.email,
-      role: m.role,
-      avatarUrl: m.avatarUrl,
-      subTeamIds: userSubTeamMap[m.id] || [],
-      // Design-ops fused fields (null when user has not been tracked yet)
-      roleTitle: m.roleTitle ?? null,
-      leadUserId: m.leadUserId ?? null,
-      employmentStatus: m.employmentStatus,
-      isActive: m.isActive,
-    }))
+    members.map((m) => {
+      // Everyone can see a minimal directory (id/name/role/avatar/sub-teams).
+      const base = {
+        id: m.id,
+        name: m.name,
+        role: m.role,
+        avatarUrl: m.avatarUrl,
+        subTeamIds: userSubTeamMap[m.id] || [],
+      };
+      if (!isLead) {
+        return base;
+      }
+      // Leads and directors also see the full design-ops fused record.
+      return {
+        ...base,
+        email: m.email,
+        roleTitle: m.roleTitle ?? null,
+        leadUserId: m.leadUserId ?? null,
+        employmentStatus: m.employmentStatus,
+        isActive: m.isActive,
+      };
+    })
   );
 });
 
 router.patch(
   "/team/members/:id/role",
-  requireRole("lead", "director"),
+  requireLeadOrDirector,
   async (req, res): Promise<void> => {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) {
@@ -58,8 +78,17 @@ router.patch(
       return;
     }
 
-    if (role === "director" && req.user!.role !== "director") {
-      res.status(403).json({ error: "Only directors can assign director role" });
+    // Only directors can assign the lead or director role. Leads can only
+    // change a member's role among member-level options (i.e., nothing
+    // elevating: this effectively restricts leads to demoting/removing leads
+    // they did not create — which they can't do either, see below).
+    if ((role === "director" || role === "lead") && req.user!.role !== "director") {
+      res.status(403).json({ error: "Only directors can assign lead or director role" });
+      return;
+    }
+
+    if (id === req.user!.id && role !== req.user!.role) {
+      res.status(400).json({ error: "Cannot change your own role" });
       return;
     }
 
@@ -73,14 +102,15 @@ router.patch(
       return;
     }
 
-    if (target.role === "director" && req.user!.role !== "director") {
-      res.status(403).json({ error: "Only directors can modify director accounts" });
+    // Only directors can modify existing lead or director accounts.
+    if ((target.role === "lead" || target.role === "director") && req.user!.role !== "director") {
+      res.status(403).json({ error: "Only directors can modify lead or director accounts" });
       return;
     }
 
     const [updated] = await db
       .update(usersTable)
-      .set({ role })
+      .set({ role, updatedAt: new Date() })
       .where(eq(usersTable.id, id))
       .returning();
 
@@ -90,7 +120,7 @@ router.patch(
 
 router.delete(
   "/team/members/:id",
-  requireRole("lead", "director"),
+  requireLeadOrDirector,
   async (req, res): Promise<void> => {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) {
@@ -113,21 +143,22 @@ router.delete(
       return;
     }
 
-    if (target.role === "director" && req.user!.role !== "director") {
-      res.status(403).json({ error: "Only directors can remove directors" });
+    // Only directors can remove leads or directors.
+    if ((target.role === "lead" || target.role === "director") && req.user!.role !== "director") {
+      res.status(403).json({ error: "Only directors can remove lead or director accounts" });
       return;
     }
 
     await db
       .update(usersTable)
-      .set({ teamId: null })
+      .set({ teamId: null, updatedAt: new Date() })
       .where(eq(usersTable.id, id));
 
     res.json({ success: true });
   }
 );
 
-router.get("/invitations", requireRole("lead", "director"), async (req, res): Promise<void> => {
+router.get("/invitations", requireLeadOrDirector, async (req, res): Promise<void> => {
   const user = req.user!;
   if (!user.teamId) {
     res.json([]);
@@ -142,21 +173,23 @@ router.get("/invitations", requireRole("lead", "director"), async (req, res): Pr
   res.json(invitations);
 });
 
-router.post("/invitations", requireRole("lead", "director"), async (req, res): Promise<void> => {
-  const { email, role } = req.body;
-  if (!email || typeof email !== "string" || !email.includes("@")) {
+router.post("/invitations", requireLeadOrDirector, async (req, res): Promise<void> => {
+  const email = normalizeEmail(req.body?.email);
+  if (!email) {
     res.status(400).json({ error: "Valid email is required" });
     return;
   }
 
-  const inviteRole = role || "member";
+  const inviteRole = req.body?.role || "member";
   if (!["member", "lead", "director"].includes(inviteRole)) {
     res.status(400).json({ error: "Invalid role" });
     return;
   }
 
-  if (inviteRole === "director" && req.user!.role !== "director") {
-    res.status(403).json({ error: "Only directors can invite as director" });
+  // Only directors can add new leads or directors. Leads may only invite
+  // members — this matches the "admin adds new leads and admins" rule.
+  if ((inviteRole === "lead" || inviteRole === "director") && req.user!.role !== "director") {
+    res.status(403).json({ error: "Only directors can invite leads or directors" });
     return;
   }
 
@@ -205,7 +238,7 @@ router.post("/invitations", requireRole("lead", "director"), async (req, res): P
   res.status(201).json(invitation);
 });
 
-router.delete("/invitations/:id", requireRole("lead", "director"), async (req, res): Promise<void> => {
+router.delete("/invitations/:id", requireLeadOrDirector, async (req, res): Promise<void> => {
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) {
     res.status(400).json({ error: "Invalid id" });

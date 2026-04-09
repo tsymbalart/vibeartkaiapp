@@ -629,17 +629,8 @@ function TeamMembersManagement({ members, invitations }: { members: TeamUser[]; 
   const [inviteRole, setInviteRole] = useState("member");
   const [showInviteForm, setShowInviteForm] = useState(false);
   const [confirmRemoveId, setConfirmRemoveId] = useState<number | null>(null);
-  const [copiedId, setCopiedId] = useState<number | null>(null);
 
   const pendingInvites = invitations.filter((i) => i.status === "pending");
-
-  const copyInviteLink = (inv: Invitation) => {
-    const link = `${window.location.origin}/api/login?returnTo=/`;
-    navigator.clipboard.writeText(link).then(() => {
-      setCopiedId(inv.id);
-      setTimeout(() => setCopiedId(null), 2000);
-    });
-  };
 
   const changeRole = useMutation({
     mutationFn: async ({ id, role }: { id: number; role: string }) => {
@@ -816,13 +807,6 @@ function TeamMembersManagement({ members, invitations }: { members: TeamUser[]; 
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => copyInviteLink(inv)}
-                    className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-                    title="Copy invite link"
-                  >
-                    {copiedId === inv.id ? <BiCheck className="w-4 h-4 text-emerald-500" /> : <BiCopy className="w-4 h-4" />}
-                  </button>
                   <button
                     onClick={() => cancelInvite.mutate(inv.id)}
                     className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"

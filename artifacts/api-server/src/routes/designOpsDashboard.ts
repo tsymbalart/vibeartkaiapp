@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { requireTeam } from "../middlewares/requireAuth";
+import { requireLeadOrDirector } from "../middlewares/requireAuth";
 import {
   listProjectsEnriched,
   listDesignTeamUsersEnriched,
@@ -15,7 +15,7 @@ const router: IRouter = Router();
  * Returns projects, design-team users, and all open register items in one
  * call so the frontend can render the 4 widgets without N+1 round trips.
  */
-router.get("/design-ops/dashboard", requireTeam, async (req, res): Promise<void> => {
+router.get("/design-ops/dashboard", requireLeadOrDirector, async (req, res): Promise<void> => {
   const teamId = req.user!.teamId!;
 
   const [projects, people, allItems] = await Promise.all([

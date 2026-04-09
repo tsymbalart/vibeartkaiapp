@@ -7,18 +7,20 @@ import {
   usersTable,
 } from "@workspace/db";
 import { and, asc, desc, eq } from "drizzle-orm";
-import { requireTeam, requireRole } from "../middlewares/requireAuth";
+import { requireLeadOrDirector } from "../middlewares/requireAuth";
 import { enrichRegisterItem } from "../lib/designOpsStorage";
 
 const router: IRouter = Router();
 
-const canWrite = requireRole("lead", "director");
+// Risk/opportunity register is lead/director-only.
+const canRead = requireLeadOrDirector;
+const canWrite = requireLeadOrDirector;
 
 /**
  * Unified risks + opportunities register.
  * Filters: type, linkedTo, projectId, userId, status
  */
-router.get("/register-items", requireTeam, async (req, res): Promise<void> => {
+router.get("/register-items", canRead, async (req, res): Promise<void> => {
   const teamId = req.user!.teamId!;
 
   const where = [eq(registerItemsTable.teamId, teamId)];
@@ -49,7 +51,7 @@ router.get("/register-items", requireTeam, async (req, res): Promise<void> => {
   res.json(rows.map(enrichRegisterItem));
 });
 
-router.post("/register-items", requireTeam, canWrite, async (req, res): Promise<void> => {
+router.post("/register-items", canWrite, async (req, res): Promise<void> => {
   const teamId = req.user!.teamId!;
   const parsed = insertRegisterItemSchema.safeParse({
     ...req.body,
@@ -87,7 +89,7 @@ router.post("/register-items", requireTeam, canWrite, async (req, res): Promise<
   res.status(201).json(enrichRegisterItem(item));
 });
 
-router.patch("/register-items/:id", requireTeam, canWrite, async (req, res): Promise<void> => {
+router.patch("/register-items/:id", canWrite, async (req, res): Promise<void> => {
   const teamId = req.user!.teamId!;
   const id = Number(req.params.id);
   if (!Number.isInteger(id)) {
@@ -138,7 +140,7 @@ router.patch("/register-items/:id", requireTeam, canWrite, async (req, res): Pro
   res.json(enrichRegisterItem(item));
 });
 
-router.delete("/register-items/:id", requireTeam, canWrite, async (req, res): Promise<void> => {
+router.delete("/register-items/:id", canWrite, async (req, res): Promise<void> => {
   const teamId = req.user!.teamId!;
   const id = Number(req.params.id);
   if (!Number.isInteger(id)) {

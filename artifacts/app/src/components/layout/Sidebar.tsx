@@ -29,7 +29,6 @@ const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: BiSolidDashboard },
   { href: "/check-in", label: "Pulse Check", icon: BiSolidCheckSquare },
   { href: "/my-journey", label: "My Journey", icon: BiLineChart },
-  { href: "/team-insights", label: "Team Summary", icon: BiSolidGroup },
   { href: "/my-feedback", label: "My Feedback", icon: BiSolidInbox },
   { href: "/kudos", label: "Pulse Kudos", icon: BiSolidHeart },
 ];
@@ -41,6 +40,7 @@ const DESIGN_OPS_NAV_ITEMS = [
 ];
 
 const LEAD_NAV_ITEMS = [
+  { href: "/team-insights", label: "Team Summary", icon: BiSolidGroup },
   { href: "/one-on-ones", label: "1:1s", icon: BiSolidUser },
   { href: "/pulse-feedback", label: "Pulse Feedback", icon: BiSolidMessageRounded },
   { href: "/pulse-setup", label: "Pulse Set-up", icon: BiSolidCog },
@@ -50,11 +50,10 @@ const LEAD_NAV_ITEMS = [
 const MOBILE_BOTTOM_ITEMS = [
   { href: "/", label: "Dashboard", icon: BiSolidDashboard },
   { href: "/check-in", label: "Pulse Check", icon: BiSolidCheckSquare },
-  { href: "/team-insights", label: "Team", icon: BiSolidGroup },
+  { href: "/my-journey", label: "Journey", icon: BiLineChart },
 ];
 
 const MOBILE_DRAWER_ITEMS = [
-  { href: "/my-journey", label: "My Journey", icon: BiLineChart },
   { href: "/my-feedback", label: "My Feedback", icon: BiSolidInbox },
   { href: "/kudos", label: "Pulse Kudos", icon: BiSolidHeart },
 ];

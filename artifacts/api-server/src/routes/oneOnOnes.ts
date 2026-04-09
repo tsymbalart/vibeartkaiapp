@@ -8,7 +8,7 @@ import {
   type OneOnOneActionItem,
 } from "@workspace/db";
 import { eq, desc, and, inArray } from "drizzle-orm";
-import { requireRole } from "../middlewares/requireAuth";
+import { requireLeadOrDirector } from "../middlewares/requireAuth";
 
 interface ActionItemInput {
   text: string;
@@ -16,7 +16,7 @@ interface ActionItemInput {
 }
 
 const router: IRouter = Router();
-const leadOrDirector = requireRole("lead", "director");
+const leadOrDirector = requireLeadOrDirector;
 
 const DEFAULT_INTERVAL_WEEKS = 4;
 

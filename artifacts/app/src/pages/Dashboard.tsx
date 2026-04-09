@@ -38,7 +38,16 @@ const STATUS_TEXT = {
   insufficient: "text-muted-foreground",
 };
 
-type ExtendedDashboardData = DashboardData & {
+// The server now returns null for the team-only fields when the viewer is
+// a member, and numbers otherwise. Override the generated DashboardData to
+// make that explicit on the client side.
+type ExtendedDashboardData = Omit<
+  DashboardData,
+  "memberCount" | "completionRate" | "compositeScore"
+> & {
+  memberCount: number | null;
+  completionRate: number | null;
+  compositeScore: number | null;
   personalPillarScores: PillarScore[] | null;
   personalCompositeScore: number | null;
   lastCheckInDate: string | null;
@@ -145,7 +154,7 @@ export default function Dashboard() {
   }
 
   const isLead = data.userRole === "lead" || data.userRole === "director";
-  const isLeadEmpty = isLead && data.compositeScore === 0 && data.completionRate === 0;
+  const isLeadEmpty = isLead && (data.compositeScore ?? 0) === 0 && (data.completionRate ?? 0) === 0;
 
   return (
     <AppLayout>
@@ -338,7 +347,7 @@ function TeammateDashboard({ data }: { data: ExtendedDashboardData }) {
             </div>
           </section>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4">
             <Link href="/my-journey">
               <Card className="group hover:-translate-y-1 transition-all duration-300 cursor-pointer">
                 <CardContent className="p-6 flex items-center gap-4">
@@ -348,20 +357,6 @@ function TeammateDashboard({ data }: { data: ExtendedDashboardData }) {
                   <div>
                     <p className="font-medium text-foreground">My Journey</p>
                     <p className="text-sm text-muted-foreground">View your check-in history</p>
-                  </div>
-                  <BiSolidUpArrowAlt className="w-4 h-4 text-muted-foreground ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
-                </CardContent>
-              </Card>
-            </Link>
-            <Link href="/team-insights">
-              <Card className="group hover:-translate-y-1 transition-all duration-300 cursor-pointer">
-                <CardContent className="p-6 flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                    <BiSolidGroup className="w-5 h-5 text-primary" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-foreground">Team Vibe</p>
-                    <p className="text-sm text-muted-foreground">See how the team is doing</p>
                   </div>
                   <BiSolidUpArrowAlt className="w-4 h-4 text-muted-foreground ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
                 </CardContent>
@@ -377,6 +372,11 @@ function TeammateDashboard({ data }: { data: ExtendedDashboardData }) {
 function LeadDashboard({ data, subTeams, subTeamFilter, onSubTeamChange }: { data: ExtendedDashboardData; subTeams: SubTeam[]; subTeamFilter: number | null; onSubTeamChange: (id: number | null) => void }) {
   const validPillars = data.pillarScores.filter((p) => p.status !== "insufficient");
   const hasData = validPillars.length > 0;
+  // Team aggregates are only populated when the viewer is a lead/director.
+  // Fall back to 0 so the JSX below can continue to use plain numbers.
+  const compositeScore = data.compositeScore ?? 0;
+  const completionRate = data.completionRate ?? 0;
+  const memberCount = data.memberCount ?? 0;
 
   const thriving = validPillars.filter((p) => p.status === "green").sort((a, b) => b.score - a.score);
   const attention = validPillars.filter((p) => p.status === "red" || p.status === "yellow").sort((a, b) => a.score - b.score);
@@ -415,18 +415,18 @@ function LeadDashboard({ data, subTeams, subTeamFilter, onSubTeamChange }: { dat
                 Composite Health Score
               </div>
               <h2 className="text-2xl md:text-3xl font-medium leading-tight text-foreground">
-                Team health is at <span className={scoreColor(data.compositeScore)}>{Math.round(data.compositeScore)}%</span>
+                Team health is at <span className={scoreColor(compositeScore)}>{Math.round(compositeScore)}%</span>
               </h2>
               <div className="w-full max-w-md pt-2">
                 <div className="flex justify-between text-sm mb-2 font-medium text-muted-foreground">
-                  <span>Participation: {data.completionRate}%</span>
-                  <span>{data.memberCount} members</span>
+                  <span>Participation: {completionRate}%</span>
+                  <span>{memberCount} members</span>
                 </div>
-                <Progress value={data.completionRate} className="h-3 bg-primary/10" indicatorClassName="bg-primary" />
+                <Progress value={completionRate} className="h-3 bg-primary/10" indicatorClassName="bg-primary" />
               </div>
             </div>
             <div className="text-center">
-              <div className={cn("text-7xl font-medium", scoreColor(data.compositeScore))}>{Math.round(data.compositeScore)}</div>
+              <div className={cn("text-7xl font-medium", scoreColor(compositeScore))}>{Math.round(compositeScore)}</div>
               <div className="text-sm font-medium text-muted-foreground mt-1">out of 100</div>
             </div>
           </div>

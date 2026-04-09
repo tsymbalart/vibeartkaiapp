@@ -8,7 +8,7 @@ import {
   registerItemsTable,
 } from "@workspace/db";
 import { and, desc, eq, asc } from "drizzle-orm";
-import { requireTeam, requireRole } from "../middlewares/requireAuth";
+import { requireLeadOrDirector } from "../middlewares/requireAuth";
 import {
   enrichRegisterItem,
   enrichUserHealth,
@@ -20,23 +20,35 @@ import {
 /**
  * Design Team routes — operates on `users` as tracked design-ops people.
  * A user is considered "tracked" when `roleTitle` is non-null.
- * Listing excludes untracked users by default; PATCH lets a lead "claim" any
- * team member by setting `roleTitle`.
+ * All routes are lead/director-only: the data is sensitive (notes, review
+ * dates, health checks, etc.) and must not be exposed to members.
  */
 
 const router: IRouter = Router();
 
-const canWrite = requireRole("lead", "director");
+const canRead = requireLeadOrDirector;
+const canWrite = requireLeadOrDirector;
+
+async function validateLeadInTeam(teamId: number, leadUserId: unknown): Promise<boolean> {
+  if (leadUserId == null) return true;
+  if (typeof leadUserId !== "number" || !Number.isInteger(leadUserId)) return false;
+  const [row] = await db
+    .select({ id: usersTable.id, teamId: usersTable.teamId, role: usersTable.role })
+    .from(usersTable)
+    .where(eq(usersTable.id, leadUserId));
+  if (!row || row.teamId !== teamId) return false;
+  return row.role === "lead" || row.role === "director";
+}
 
 // ─── List + get ─────────────────────────────────────────────────────────
 
-router.get("/design-team", requireTeam, async (req, res): Promise<void> => {
+router.get("/design-team", canRead, async (req, res): Promise<void> => {
   const teamId = req.user!.teamId!;
   const people = await listDesignTeamUsersEnriched(teamId);
   res.json(people);
 });
 
-router.get("/design-team/:userId", requireTeam, async (req, res): Promise<void> => {
+router.get("/design-team/:userId", canRead, async (req, res): Promise<void> => {
   const teamId = req.user!.teamId!;
   const userId = Number(req.params.userId);
   if (!Number.isInteger(userId)) {
@@ -95,7 +107,7 @@ const EDITABLE_FIELDS = [
   "isActive",
 ] as const;
 
-router.patch("/design-team/:userId", requireTeam, canWrite, async (req, res): Promise<void> => {
+router.patch("/design-team/:userId", canWrite, async (req, res): Promise<void> => {
   const teamId = req.user!.teamId!;
   const userId = Number(req.params.userId);
   if (!Number.isInteger(userId)) {
@@ -115,6 +127,13 @@ router.patch("/design-team/:userId", requireTeam, canWrite, async (req, res): Pr
     if (key in body) updates[key] = body[key];
   }
 
+  if ("leadUserId" in updates) {
+    if (!(await validateLeadInTeam(teamId, updates.leadUserId))) {
+      res.status(400).json({ error: "leadUserId must be a lead/director in the same team" });
+      return;
+    }
+  }
+
   const [user] = await db
     .update(usersTable)
     .set(updates)
@@ -132,7 +151,6 @@ router.patch("/design-team/:userId", requireTeam, canWrite, async (req, res): Pr
 
 router.post(
   "/design-team/:userId/health-checks",
-  requireTeam,
   canWrite,
   async (req, res): Promise<void> => {
     const teamId = req.user!.teamId!;
@@ -174,7 +192,6 @@ router.post(
 
 router.patch(
   "/design-team/:userId/health-checks/:checkId",
-  requireTeam,
   canWrite,
   async (req, res): Promise<void> => {
     const teamId = req.user!.teamId!;
@@ -228,7 +245,6 @@ router.patch(
 
 router.delete(
   "/design-team/:userId/health-checks/:checkId",
-  requireTeam,
   canWrite,
   async (req, res): Promise<void> => {
     const teamId = req.user!.teamId!;

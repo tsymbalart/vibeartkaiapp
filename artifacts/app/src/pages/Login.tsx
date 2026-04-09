@@ -1,8 +1,15 @@
+import { useMemo } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { FcGoogle } from "react-icons/fc";
 
 export default function Login() {
   const { login, loading } = useAuth();
+
+  const authError = useMemo(() => {
+    if (typeof window === "undefined") return null;
+    const params = new URLSearchParams(window.location.search);
+    return params.get("auth_error");
+  }, []);
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-6">
@@ -18,6 +25,16 @@ export default function Login() {
             Team health check-ins and feedback
           </p>
         </div>
+
+        {authError === "not_authorized" && (
+          <div className="p-4 rounded-xl border border-destructive/30 bg-destructive/10 text-left space-y-1.5">
+            <p className="text-sm font-medium text-destructive">Access denied</p>
+            <p className="text-xs text-destructive/80 leading-relaxed">
+              This Google account isn't on the Artkai Pulse allowlist and has no pending
+              invitation. Ask a director to invite your email, then try again.
+            </p>
+          </div>
+        )}
 
         <button
           onClick={() => login("/")}

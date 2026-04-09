@@ -24,6 +24,9 @@ import DesignTeam from "@/pages/DesignTeam";
 import DesignTeamMember from "@/pages/DesignTeamMember";
 import OperationalTasks from "@/pages/OperationalTasks";
 import NotFound from "@/pages/not-found";
+import { RequireRole } from "@/components/layout/RequireRole";
+
+const LEAD_ROLES = ["lead", "director"] as const;
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -58,25 +61,55 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function LeadOnly({ children }: { children: React.ReactNode }) {
+  return <RequireRole roles={[...LEAD_ROLES]}>{children}</RequireRole>;
+}
+
 function AppRoutes() {
   return (
     <Switch>
+      {/* Everyone (members included) — pulse check-ins and personal data. */}
       <Route path="/" component={Dashboard} />
       <Route path="/check-in" component={CheckInFlow} />
       <Route path="/my-journey" component={MyJourney} />
-      <Route path="/team-insights" component={TeamInsights} />
-      <Route path="/pulse-feedback" component={PulseFeedback} />
       <Route path="/my-feedback" component={MyFeedback} />
       <Route path="/kudos" component={Kudos} />
-      <Route path="/pulse-setup" component={PulseSetup} />
-      <Route path="/settings" component={Settings} />
-      <Route path="/one-on-ones/:memberId" component={OneOnOneMember} />
-      <Route path="/one-on-ones" component={OneOnOnes} />
-      <Route path="/projects/:id" component={ProjectDetail} />
-      <Route path="/projects" component={Projects} />
-      <Route path="/design-team/:userId" component={DesignTeamMember} />
-      <Route path="/design-team" component={DesignTeam} />
-      <Route path="/operational-tasks" component={OperationalTasks} />
+
+      {/* Lead / director only — team aggregates and design-ops tools. */}
+      <Route path="/team-insights">
+        <LeadOnly><TeamInsights /></LeadOnly>
+      </Route>
+      <Route path="/pulse-feedback">
+        <LeadOnly><PulseFeedback /></LeadOnly>
+      </Route>
+      <Route path="/pulse-setup">
+        <LeadOnly><PulseSetup /></LeadOnly>
+      </Route>
+      <Route path="/settings">
+        <LeadOnly><Settings /></LeadOnly>
+      </Route>
+      <Route path="/one-on-ones/:memberId">
+        <LeadOnly><OneOnOneMember /></LeadOnly>
+      </Route>
+      <Route path="/one-on-ones">
+        <LeadOnly><OneOnOnes /></LeadOnly>
+      </Route>
+      <Route path="/projects/:id">
+        <LeadOnly><ProjectDetail /></LeadOnly>
+      </Route>
+      <Route path="/projects">
+        <LeadOnly><Projects /></LeadOnly>
+      </Route>
+      <Route path="/design-team/:userId">
+        <LeadOnly><DesignTeamMember /></LeadOnly>
+      </Route>
+      <Route path="/design-team">
+        <LeadOnly><DesignTeam /></LeadOnly>
+      </Route>
+      <Route path="/operational-tasks">
+        <LeadOnly><OperationalTasks /></LeadOnly>
+      </Route>
+
       <Route path="/login" component={Login} />
       <Route component={NotFound} />
     </Switch>

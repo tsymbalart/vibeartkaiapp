@@ -59,195 +59,6 @@ function TrendIcon({ trend }: { trend: string }) {
   return <BiMinus className="w-4 h-4 text-muted-foreground" />;
 }
 
-function TeammateSummary({ data }: { data: TeamSummaryData }) {
-  const validPillars = data.pillarScores.filter((p) => p.status !== "insufficient");
-  const isEmpty = data.respondentCount === 0;
-  const vibeLevel = data.compositeScore >= 75 ? "great" : data.compositeScore >= 60 ? "good" : data.compositeScore >= 50 ? "okay" : "tough";
-  const vibeMessages: Record<string, { emoji: string; headline: string; body: string }> = {
-    great: { emoji: "🌟", headline: "Team's feeling great!", body: "Your team's energy and health scores are strong across the board. Keep up the good work together." },
-    good: { emoji: "💪", headline: "Team's doing well", body: "Most areas are looking healthy. A few pillars could use some attention, but overall the vibe is positive." },
-    okay: { emoji: "🌤️", headline: "Room to grow together", body: "The team is in a steady place. There are some areas where collective focus could make a real difference." },
-    tough: { emoji: "🤝", headline: "Let's rally together", body: "Some areas need attention. Remember, surfacing challenges is the first step toward improvement." },
-  };
-  const vibe = vibeMessages[vibeLevel];
-
-  if (isEmpty) {
-    return (
-      <div className="space-y-8 animate-in fade-in duration-500">
-        <header>
-          <h1 className="text-3xl font-medium">Team Vibe</h1>
-          <p className="text-muted-foreground mt-2">
-            How the team is feeling overall. Scores are anonymized — no individual responses are shown.
-          </p>
-        </header>
-
-        <Card className="overflow-hidden">
-          <div className="p-10 md:p-14 text-center space-y-6">
-            <div className="text-6xl">🫶</div>
-            <div className="space-y-3 max-w-lg mx-auto">
-              <h2 className="text-2xl font-medium text-foreground">Your team vibe is waiting</h2>
-              <p className="text-muted-foreground leading-relaxed">
-                Once enough teammates complete their pulse checks, you'll see how the team is doing
-                across wellness, growth, collaboration, and more. Every voice counts — be one of the first!
-              </p>
-            </div>
-            <Link href="/check-in">
-              <Button size="lg" className="font-medium px-8 shadow-lg shadow-primary/20">
-                Add My Voice <BiSolidMessageSquareDetail className="ml-2 w-5 h-5" />
-              </Button>
-            </Link>
-          </div>
-        </Card>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      <header>
-        <h1 className="text-3xl font-medium">Team Vibe</h1>
-        <p className="text-muted-foreground mt-2">
-          How the team is feeling overall. Scores are anonymized — no individual responses are shown.
-        </p>
-      </header>
-
-      <Card>
-        <CardContent className="p-8 text-center space-y-3">
-          <p className="text-5xl">{vibe.emoji}</p>
-          <h2 className="text-2xl font-medium text-foreground">{vibe.headline}</h2>
-          <p className="text-muted-foreground max-w-md mx-auto">{vibe.body}</p>
-          <div className="flex justify-center gap-6 pt-4">
-            <div className="text-center">
-              <p className={cn("text-3xl font-medium", scoreColor(data.compositeScore))}>{Math.round(data.compositeScore)}%</p>
-              <p className="text-xs text-muted-foreground font-medium">Team Health</p>
-            </div>
-            <div className="text-center">
-              <p className="text-3xl font-medium text-foreground">{data.participationRate}%</p>
-              <p className="text-xs text-muted-foreground font-medium">Participation</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {data.pillarScores.map((ps) => {
-          const statusLabel = STATUS_EMOJI[ps.status] || "—";
-          const PillarIcon = getPillarIcon(ps.pillar);
-          return (
-            <Card key={ps.pillar} className="overflow-hidden">
-              <CardContent className="p-4 space-y-2">
-                <div className="flex items-center justify-between">
-                  <PillarIcon className="w-4 h-4 text-muted-foreground" />
-                  <TrendIcon trend={ps.trend} />
-                </div>
-                <p className={cn("text-xl font-medium", ps.status === "insufficient" ? "text-muted-foreground" : scoreColor(ps.score))}>
-                  {ps.status === "insufficient" ? "—" : `${Math.round(ps.score)}%`}
-                </p>
-                <p className="text-xs font-medium text-foreground">{getPillarLabel(ps.pillar)}</p>
-                <p className={cn(
-                  "text-[10px] font-medium px-2 py-0.5 rounded-lg inline-block",
-                  STATUS_BG[ps.status as keyof typeof STATUS_BG] || STATUS_BG.insufficient
-                )}>
-                  {statusLabel}
-                </p>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-foreground text-base">
-              <BiSolidHeart className="w-5 h-5" /> Where We Shine
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-2">
-              {data.topStrengths.map((str, i) => (
-                <li key={i} className="flex items-center gap-2 text-sm">
-                  <span className="text-muted-foreground">✓</span>
-                  {str}
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-foreground text-base">
-              <BiTrendingUp className="w-5 h-5" /> Where We Can Grow
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-2">
-              {data.areasForGrowth.map((area, i) => (
-                <li key={i} className="flex items-center gap-2 text-sm">
-                  <span className="text-muted-foreground">→</span>
-                  {area}
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      </div>
-
-      {data.trendChart.length > 1 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Team Health Over Time</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[200px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={data.trendChart} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                  <XAxis
-                    dataKey="date"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-                    tickFormatter={(val) => format(new Date(val), "MMM d")}
-                  />
-                  <YAxis
-                    axisLine={false}
-                    tickLine={false}
-                    domain={[0, 100]}
-                    tickFormatter={(v) => `${v}%`}
-                    tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-                  />
-                  <RechartsTooltip
-                    contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)" }}
-                    formatter={(value: number) => [`${Math.round(value)}%`, "Team Health"]}
-                    labelFormatter={(label) => format(new Date(label), "MMM d, yyyy")}
-                  />
-                  <ReferenceLine y={75} stroke="hsl(160, 60%, 45%)" strokeDasharray="3 3" />
-                  <Line
-                    type="monotone"
-                    dataKey="value"
-                    stroke="hsl(var(--primary))"
-                    strokeWidth={2.5}
-                    dot={{ r: 4, fill: "hsl(var(--primary))", strokeWidth: 0 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      <div className="flex items-center gap-2 px-4 py-3 bg-secondary/50 rounded-xl text-xs text-muted-foreground">
-        <BiSolidGroup className="w-4 h-4 flex-shrink-0" />
-        <p>
-          Based on {data.respondentCount} teammates over the last 90 days. Minimum 3 responses required per pillar. Your individual answers are never shown to anyone.
-        </p>
-      </div>
-    </div>
-  );
-}
-
 function RadarChart({ pillars }: { pillars: TeamSummaryData["pillarScores"] }) {
   const size = 380;
   const center = size / 2;
@@ -718,12 +529,14 @@ function SubTeamFilter({ subTeams, selected, onChange }: { subTeams: SubTeam[]; 
 }
 
 export default function TeamInsights() {
-  const { role, userId } = useRole();
+  const { userId } = useRole();
   const [subTeamFilter, setSubTeamFilter] = useState<number | null>(null);
-  const isLeadView = role === "lead" || role === "director";
 
+  // This page is gated to leads and directors by `RequireRole` in App.tsx
+  // and by the `/api/team-summary` endpoint on the server, so we always
+  // render the lead view here.
   const apiParams: Record<string, string | number> = { days: 90 };
-  if (subTeamFilter && isLeadView) {
+  if (subTeamFilter) {
     apiParams.subTeamId = subTeamFilter;
   }
 
@@ -735,7 +548,6 @@ export default function TeamInsights() {
   const { data: subTeams = [] } = useQuery<SubTeam[]>({
     queryKey: ["sub-teams"],
     queryFn: () => apiFetch<SubTeam[]>("/api/sub-teams"),
-    enabled: isLeadView,
   });
 
   if (isLoading) {
@@ -758,10 +570,7 @@ export default function TeamInsights() {
 
   return (
     <AppLayout>
-      {isLeadView
-        ? <LeadSummary data={data} subTeams={subTeams} subTeamFilter={subTeamFilter} onSubTeamChange={setSubTeamFilter} />
-        : <TeammateSummary data={data} />
-      }
+      <LeadSummary data={data} subTeams={subTeams} subTeamFilter={subTeamFilter} onSubTeamChange={setSubTeamFilter} />
     </AppLayout>
   );
 }

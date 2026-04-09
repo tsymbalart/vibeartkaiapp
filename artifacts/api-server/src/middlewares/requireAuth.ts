@@ -26,6 +26,10 @@ export function requireRole(...roles: string[]) {
       res.status(401).json({ error: "Authentication required" });
       return;
     }
+    if (!req.user.teamId) {
+      res.status(403).json({ error: "Team membership required" });
+      return;
+    }
     if (!roles.includes(req.user.role)) {
       res.status(403).json({ error: "Insufficient permissions" });
       return;
@@ -33,3 +37,6 @@ export function requireRole(...roles: string[]) {
     next();
   };
 }
+
+export const requireLeadOrDirector = requireRole("lead", "director");
+export const requireDirector = requireRole("director");

@@ -119,7 +119,7 @@ router.post("/check-ins/:id/responses", requireTeam, async (req, res): Promise<v
 
   const checkIn = existing;
 
-  const teamId = req.user!.teamId ?? 2;
+  const teamId = req.user!.teamId!;
 
   for (const resp of parsed.data.responses) {
     const [question] = await db
@@ -175,11 +175,15 @@ router.post("/check-ins/:id/responses", requireTeam, async (req, res): Promise<v
           .returning();
       }
 
+      // Intentionally store `userId: null` on the message so a DB reader
+      // cannot tie the pulse follow-up text back to the teammate. The
+      // thread row still has `userId` so the author can find their own
+      // threads via `/my-feedback`.
       await db.insert(intentMessagesTable).values({
         threadId: existingThread.id,
         content: resp.textValue,
         authorRole: "anonymous_member",
-        userId: memberId,
+        userId: null,
       });
     }
   }

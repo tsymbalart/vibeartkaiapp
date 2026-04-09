@@ -1,11 +1,30 @@
+import crypto from "crypto";
 import { Router, type IRouter } from "express";
 import { db, intentThreadsTable, intentMessagesTable, usersTable, questionsTable } from "@workspace/db";
 import { eq, desc, and, inArray } from "drizzle-orm";
-import { requireTeam, requireRole } from "../middlewares/requireAuth";
+import { requireTeam, requireLeadOrDirector } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
 
-router.get("/intent-threads", requireRole("lead", "director"), async (req, res): Promise<void> => {
+// Stable per-team anonymous label. Uses a SHA-256 hash of the user id with
+// a per-team salt so:
+//   1. The label stays the same across requests (leads can follow a
+//      conversation without the label shifting when new threads arrive).
+//   2. The label cannot be reversed to a user id without the salt.
+//   3. Two teams' labels are independent.
+const ANON_SALT = process.env.ANON_LABEL_SALT ?? "artkai-pulse-anon-v1";
+
+function anonLabelFor(teamId: number, userId: number | null, fallbackThreadId: number): string {
+  const source = userId != null ? `u:${userId}` : `t:${fallbackThreadId}`;
+  const hash = crypto.createHash("sha256").update(`${ANON_SALT}:${teamId}:${source}`).digest("hex");
+  // Map the first 24 bits of the hash into a 4-digit id. Two users colliding
+  // in 4096 combinations is acceptable; leads have the full hash to disambiguate
+  // programmatically if needed but we only expose the short form.
+  const short = parseInt(hash.slice(0, 6), 16) % 10000;
+  return `Anonymous #${short.toString().padStart(4, "0")}`;
+}
+
+router.get("/intent-threads", requireLeadOrDirector, async (req, res): Promise<void> => {
   const user = req.user!;
 
   const rawThreads = await db
@@ -42,9 +61,6 @@ router.get("/intent-threads", requireRole("lead", "director"), async (req, res):
     }
   }
 
-  const userIdToAnonLabel: Record<string, string> = {};
-  let anonCounter = 0;
-
   const topicGroups: Record<string, {
     topic: string;
     pillar: string;
@@ -63,15 +79,9 @@ router.get("/intent-threads", requireRole("lead", "director"), async (req, res):
       };
     }
 
-    const memberKey = t.userId ? String(t.userId) : `null-${t.id}`;
-    if (!userIdToAnonLabel[memberKey]) {
-      anonCounter++;
-      userIdToAnonLabel[memberKey] = `Anonymous #${anonCounter}`;
-    }
-
     topicGroups[key].threads.push({
       id: t.id,
-      anonLabel: userIdToAnonLabel[memberKey],
+      anonLabel: anonLabelFor(user.teamId!, t.userId, t.id),
       status: t.status,
       createdAt: t.createdAt,
       messageCount: messageCounts[t.id]?.count ?? 0,
@@ -254,7 +264,7 @@ router.post("/intent-threads/:id/messages", requireTeam, async (req, res): Promi
   res.status(201).json(message);
 });
 
-router.patch("/intent-threads/:id", requireRole("lead", "director"), async (req, res): Promise<void> => {
+router.patch("/intent-threads/:id", requireLeadOrDirector, async (req, res): Promise<void> => {
   const threadId = parseInt(req.params.id);
 
   if (isNaN(threadId)) {

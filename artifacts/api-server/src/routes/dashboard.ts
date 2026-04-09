@@ -9,11 +9,13 @@ import {
   computeStatus,
   computeTrend,
 } from "../lib/scoring";
-import { requireTeam } from "../middlewares/requireAuth";
+import { requireTeam, requireLeadOrDirector } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
 
-const MIN_RESPONDENTS = 1;
+// Require at least 3 respondents before a pillar score is shown. Smaller
+// groups make the "anonymous" aggregate trivially de-anonymisable.
+const MIN_RESPONDENTS = 3;
 
 async function getScoringMode(teamId: number): Promise<string> {
   const [settings] = await db.select().from(pulseSettingsTable).where(eq(pulseSettingsTable.teamId, teamId)).limit(1);
@@ -175,8 +177,119 @@ router.get("/dashboard", requireTeam, async (req, res): Promise<void> => {
   const user = req.user!;
   const userRole = user.role;
   const uid = user.id;
+  const teamId = user.teamId!;
+  const isLead = userRole === "lead" || userRole === "director";
 
-  const teamId = req.user!.teamId!;
+  // ── Member view: personal data only, no team aggregates ─────────────
+  if (!isLead) {
+    const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, teamId));
+    const teamName = team?.name ?? "Your Team";
+
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+    const userCheckIns = await db
+      .select()
+      .from(checkInsTable)
+      .where(
+        and(
+          eq(checkInsTable.userId, uid),
+          eq(checkInsTable.status, "completed"),
+          gte(checkInsTable.createdAt, ninetyDaysAgo)
+        )
+      )
+      .orderBy(desc(checkInsTable.createdAt));
+
+    let personalPillarScores: Array<{
+      pillar: string;
+      score: number;
+      trend: "stable";
+      previousScore: number | null;
+      favorability: number;
+      responseCount: number;
+      respondentCount: number;
+      status: "green" | "yellow" | "red" | "insufficient";
+    }> | null = null;
+    let personalCompositeScore: number | null = null;
+    let lastCheckInDate: string | null = null;
+
+    if (userCheckIns.length > 0) {
+      lastCheckInDate = userCheckIns[0].createdAt.toISOString();
+
+      const ciIds = userCheckIns.map((c) => c.id);
+      const userResponses = await db
+        .select()
+        .from(responsesTable)
+        .where(inArray(responsesTable.checkInId, ciIds));
+
+      const allQuestions = await db.select().from(questionsTable);
+      const questionMap = new Map(allQuestions.map((q) => [q.id, q]));
+
+      personalPillarScores = ALL_PILLARS.map((pillar) => {
+        const pillarResponses = userResponses.filter((r) => {
+          const q = questionMap.get(r.questionId);
+          return q?.pillar === pillar && r.normalizedScore != null;
+        });
+
+        if (pillarResponses.length === 0) {
+          return {
+            pillar,
+            score: 0,
+            trend: "stable" as const,
+            previousScore: null,
+            favorability: 0,
+            responseCount: 0,
+            respondentCount: 0,
+            status: "insufficient" as const,
+          };
+        }
+
+        let weightedSum = 0;
+        let totalWeight = 0;
+        for (const r of pillarResponses) {
+          const q = questionMap.get(r.questionId);
+          const w = q?.impactWeight ?? 1.0;
+          weightedSum += r.normalizedScore! * w;
+          totalWeight += w;
+        }
+        const score = totalWeight > 0 ? Math.round((weightedSum / totalWeight) * 10) / 10 : 0;
+        const favorableCount = pillarResponses.filter((r) => (r.normalizedScore ?? 0) >= 75).length;
+
+        return {
+          pillar,
+          score,
+          trend: "stable" as const,
+          previousScore: null,
+          favorability: Math.round((favorableCount / pillarResponses.length) * 100),
+          responseCount: pillarResponses.length,
+          respondentCount: 1,
+          status: computeStatus(score),
+        };
+      });
+
+      const validPersonal = personalPillarScores.filter((p) => p.status !== "insufficient");
+      personalCompositeScore = computeComposite(validPersonal);
+    }
+
+    res.json({
+      teamName,
+      userRole,
+      // Team aggregates intentionally omitted for members.
+      memberCount: null,
+      completionRate: null,
+      compositeScore: null,
+      pillarScores: [],
+      recentActivity: [],
+      personalPillarScores,
+      personalCompositeScore,
+      lastCheckInDate,
+      bestZone: null,
+      worstZone: null,
+    });
+    return;
+  }
+
+  // ── Lead / director view: team aggregates (anonymised) ──────────────
   const subTeamIdParam = req.query.subTeamId ? parseInt(req.query.subTeamId as string, 10) : undefined;
 
   if (subTeamIdParam) {
@@ -244,100 +357,13 @@ router.get("/dashboard", requireTeam, async (req, res): Promise<void> => {
         .limit(10)
     : [];
 
-  const memberIds = recentCompletedCheckIns.map((c) => c.userId);
-  let userNames: Record<number, string> = {};
-  if (memberIds.length > 0) {
-    const users = await db.select().from(usersTable).where(inArray(usersTable.id, memberIds));
-    userNames = Object.fromEntries(users.map((u) => [u.id, u.name]));
-  }
-
+  // Names are intentionally omitted — the activity feed is anonymised.
   const recentActivity = recentCompletedCheckIns.map((ci) => ({
     id: ci.id,
-    userName: userNames[ci.userId] || "Team Member",
+    userName: "A teammate",
     action: ci.status === "completed" ? "Completed a pulse check" : "Started a pulse check",
     timestamp: ci.createdAt.toISOString(),
   }));
-
-  let personalPillarScores: typeof pillarScores | undefined;
-  let personalCompositeScore: number | undefined;
-  let lastCheckInDate: string | undefined;
-
-  const isLead = userRole === "lead" || userRole === "director";
-
-  if (!isLead) {
-    const ninetyDaysAgo = new Date();
-    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-
-    const userCheckIns = await db
-      .select()
-      .from(checkInsTable)
-      .where(
-        and(
-          eq(checkInsTable.userId, uid),
-          eq(checkInsTable.status, "completed"),
-          gte(checkInsTable.createdAt, ninetyDaysAgo)
-        )
-      )
-      .orderBy(desc(checkInsTable.createdAt));
-
-    if (userCheckIns.length > 0) {
-      lastCheckInDate = userCheckIns[0].createdAt.toISOString();
-
-      const ciIds = userCheckIns.map((c) => c.id);
-      const userResponses = await db
-        .select()
-        .from(responsesTable)
-        .where(inArray(responsesTable.checkInId, ciIds));
-
-      const allQuestions = await db.select().from(questionsTable);
-      const questionMap = new Map(allQuestions.map((q) => [q.id, q]));
-
-      personalPillarScores = ALL_PILLARS.map((pillar) => {
-        const pillarResponses = userResponses.filter((r) => {
-          const q = questionMap.get(r.questionId);
-          return q?.pillar === pillar && r.normalizedScore != null;
-        });
-
-        if (pillarResponses.length === 0) {
-          return {
-            pillar,
-            score: 0,
-            trend: "stable" as const,
-            previousScore: null,
-            favorability: 0,
-            responseCount: 0,
-            respondentCount: 0,
-            status: "insufficient" as const,
-          };
-        }
-
-        let weightedSum = 0;
-        let totalWeight = 0;
-        for (const r of pillarResponses) {
-          const q = questionMap.get(r.questionId);
-          const w = q?.impactWeight ?? 1.0;
-          weightedSum += r.normalizedScore! * w;
-          totalWeight += w;
-        }
-        const score = totalWeight > 0 ? Math.round((weightedSum / totalWeight) * 10) / 10 : 0;
-        const favorableCount = pillarResponses.filter((r) => (r.normalizedScore ?? 0) >= 75).length;
-
-        return {
-          pillar,
-          score,
-          trend: "stable" as const,
-          previousScore: null,
-          favorability: Math.round((favorableCount / pillarResponses.length) * 100),
-          responseCount: pillarResponses.length,
-          respondentCount: 1,
-          status: computeStatus(score),
-        };
-      });
-
-      const validPersonal = personalPillarScores.filter((p) => p.status !== "insufficient");
-      personalCompositeScore = computeComposite(validPersonal);
-    }
-  }
 
   const sorted = [...validPillars].sort((a, b) => b.score - a.score);
   const bestZone = sorted.length > 0 ? sorted[0] : null;
@@ -351,9 +377,9 @@ router.get("/dashboard", requireTeam, async (req, res): Promise<void> => {
     compositeScore,
     pillarScores,
     recentActivity,
-    personalPillarScores: personalPillarScores ?? null,
-    personalCompositeScore: personalCompositeScore ?? null,
-    lastCheckInDate: lastCheckInDate ?? null,
+    personalPillarScores: null,
+    personalCompositeScore: null,
+    lastCheckInDate: null,
     bestZone: bestZone ? { pillar: bestZone.pillar, score: bestZone.score, status: bestZone.status } : null,
     worstZone: worstZone ? { pillar: worstZone.pillar, score: worstZone.score, status: worstZone.status } : null,
   });
@@ -520,7 +546,7 @@ router.get("/my-journey", requireTeam, async (req, res): Promise<void> => {
   });
 });
 
-router.get("/team-summary", requireTeam, async (req, res): Promise<void> => {
+router.get("/team-summary", requireLeadOrDirector, async (req, res): Promise<void> => {
   const teamId = req.user!.teamId!;
   const days = parseInt(req.query.days as string) || 90;
   const subTeamIdParam = req.query.subTeamId ? parseInt(req.query.subTeamId as string, 10) : undefined;

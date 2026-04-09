@@ -63,13 +63,21 @@ function toAppUser(user: typeof usersTable.$inferSelect): AppUser {
   };
 }
 
+function normalizeEmail(email: string | null | undefined): string | null {
+  if (!email) return null;
+  const trimmed = email.trim().toLowerCase();
+  return trimmed || null;
+}
+
 async function consumePendingInvitation(email: string): Promise<{ teamId: number | null; role: string } | null> {
+  const normalized = normalizeEmail(email);
+  if (!normalized) return null;
   const [invitation] = await db
     .select()
     .from(invitationsTable)
     .where(
       and(
-        eq(invitationsTable.email, email),
+        eq(invitationsTable.email, normalized),
         eq(invitationsTable.status, "pending")
       )
     );
@@ -86,18 +94,27 @@ async function consumePendingInvitation(email: string): Promise<{ teamId: number
 }
 
 async function lookupAllowedEmail(email: string): Promise<{ teamId: number | null } | null> {
+  const normalized = normalizeEmail(email);
+  if (!normalized) return null;
   const [row] = await db
     .select()
     .from(allowedEmailsTable)
-    .where(eq(allowedEmailsTable.email, email));
+    .where(eq(allowedEmailsTable.email, normalized));
   if (!row) return null;
   return { teamId: row.teamId };
 }
 
-async function upsertUser(claims: { sub: string; email?: string; email_verified?: boolean; name?: string; picture?: string }): Promise<typeof usersTable.$inferSelect> {
+/**
+ * Look up an existing user row or create one for a newly signed-in Google
+ * account, but ONLY if the account has been authorised (a pending invitation
+ * or an entry in `allowed_emails`). Returns `null` for un-authorised
+ * sign-ins so the caller can redirect the user to an error screen without
+ * creating an orphan `users` row.
+ */
+async function upsertUser(claims: { sub: string; email?: string; email_verified?: boolean; name?: string; picture?: string }): Promise<typeof usersTable.$inferSelect | null> {
   const googleId = claims.sub;
   const emailVerified = claims.email_verified === true;
-  const email = emailVerified ? (claims.email || null) : null;
+  const email = emailVerified ? normalizeEmail(claims.email || null) : null;
   const displayName = claims.name || email || "User";
   const avatarUrl = claims.picture || null;
 
@@ -167,20 +184,28 @@ async function upsertUser(claims: { sub: string; email?: string; email_verified?
     }
   }
 
+  // New user: must be invited or on the allowlist. Otherwise do NOT create
+  // a row — an un-authorised signup is a silent security hole.
+  if (!email) {
+    return null;
+  }
+
   let teamId: number | null = null;
   let role = "member";
 
-  if (email) {
-    const inv = await consumePendingInvitation(email);
-    if (inv) {
-      teamId = inv.teamId;
-      role = inv.role;
-    } else {
-      const allowed = await lookupAllowedEmail(email);
-      if (allowed?.teamId) {
-        teamId = allowed.teamId;
-      }
+  const inv = await consumePendingInvitation(email);
+  if (inv) {
+    teamId = inv.teamId;
+    role = inv.role;
+  } else {
+    const allowed = await lookupAllowedEmail(email);
+    if (allowed?.teamId) {
+      teamId = allowed.teamId;
     }
+  }
+
+  if (teamId == null) {
+    return null;
   }
 
   const [newUser] = await db
@@ -311,6 +336,14 @@ router.get("/callback", async (req: Request, res: Response) => {
     name: payload.name,
     picture: payload.picture,
   });
+
+  if (!dbUser) {
+    // Email is not on the allowlist and has no pending invitation.
+    // Do NOT create an orphan row. Send the user back to the login
+    // screen with an error flag so we can show a helpful message.
+    res.redirect("/?auth_error=not_authorized");
+    return;
+  }
 
   const sessionData: SessionData = {
     user: toAppUser(dbUser),

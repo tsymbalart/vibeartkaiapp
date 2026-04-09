@@ -89,6 +89,7 @@ router.delete("/sub-teams/:id", requireRole("lead", "director"), async (req, res
 
 router.get("/users", requireTeam, async (req, res): Promise<void> => {
   const teamId = req.user!.teamId;
+  const isLead = req.user!.role === "lead" || req.user!.role === "director";
   const users = await db.select().from(usersTable).where(eq(usersTable.teamId, teamId));
 
   const userIds = users.map((u) => u.id);
@@ -105,7 +106,8 @@ router.get("/users", requireTeam, async (req, res): Promise<void> => {
   res.json(users.map((u) => ({
     id: u.id,
     name: u.name,
-    email: u.email,
+    // Only leads and directors see members' email addresses.
+    email: isLead ? u.email : null,
     role: u.role,
     avatarUrl: u.avatarUrl,
     subTeamIds: userSubTeamMap[u.id] || [],
@@ -135,12 +137,13 @@ router.put("/users/:id", requireRole("lead", "director"), async (req, res): Prom
       res.status(400).json({ error: "Invalid role" });
       return;
     }
-    if (role === "director" && req.user!.role !== "director") {
-      res.status(403).json({ error: "Only directors can assign director role" });
+    // Only directors may create or modify leads / directors.
+    if ((role === "lead" || role === "director") && req.user!.role !== "director") {
+      res.status(403).json({ error: "Only directors can assign lead or director role" });
       return;
     }
-    if (user.role === "director" && req.user!.role !== "director") {
-      res.status(403).json({ error: "Only directors can modify director users" });
+    if ((user.role === "lead" || user.role === "director") && req.user!.role !== "director") {
+      res.status(403).json({ error: "Only directors can modify lead or director users" });
       return;
     }
     updates.role = role;

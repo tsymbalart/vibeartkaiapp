@@ -4,6 +4,13 @@ import { db, teamsTable, usersTable, allowedEmailsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
 async function seedDefaults() {
+  // Never run the development seed in production — it hardcodes an Artkai
+  // team, director emails, and an allowlist that must not be auto-created
+  // against real customer data.
+  if (process.env.NODE_ENV === "production") {
+    logger.info("Skipping seedDefaults in production");
+    return;
+  }
   try {
     const existingTeams = await db.select().from(teamsTable);
     let teamId: number;

@@ -4,11 +4,12 @@ import {
   projectsTable,
   projectHealthChecksTable,
   projectAssignmentsTable,
+  usersTable,
   insertProjectSchema,
   insertProjectHealthCheckSchema,
 } from "@workspace/db";
 import { and, asc, desc, eq } from "drizzle-orm";
-import { requireTeam, requireRole } from "../middlewares/requireAuth";
+import { requireLeadOrDirector } from "../middlewares/requireAuth";
 import {
   enrichProjectHealth,
   enrichRegisterItem,
@@ -20,17 +21,30 @@ import { registerItemsTable } from "@workspace/db";
 
 const router: IRouter = Router();
 
-const canWrite = requireRole("lead", "director");
+// All design-ops project routes are lead/director-only.
+const canRead = requireLeadOrDirector;
+const canWrite = requireLeadOrDirector;
+
+async function validateLeadInTeam(teamId: number, leadUserId: unknown): Promise<boolean> {
+  if (leadUserId == null) return true;
+  if (typeof leadUserId !== "number" || !Number.isInteger(leadUserId)) return false;
+  const [row] = await db
+    .select({ id: usersTable.id, teamId: usersTable.teamId, role: usersTable.role })
+    .from(usersTable)
+    .where(eq(usersTable.id, leadUserId));
+  if (!row || row.teamId !== teamId) return false;
+  return row.role === "lead" || row.role === "director";
+}
 
 // ─── List + get ─────────────────────────────────────────────────────────
 
-router.get("/projects", requireTeam, async (req, res): Promise<void> => {
+router.get("/projects", canRead, async (req, res): Promise<void> => {
   const teamId = req.user!.teamId!;
   const projects = await listProjectsEnriched(teamId);
   res.json(projects);
 });
 
-router.get("/projects/:id", requireTeam, async (req, res): Promise<void> => {
+router.get("/projects/:id", canRead, async (req, res): Promise<void> => {
   const teamId = req.user!.teamId!;
   const id = Number(req.params.id);
   if (!Number.isInteger(id)) {
@@ -80,11 +94,16 @@ router.get("/projects/:id", requireTeam, async (req, res): Promise<void> => {
 
 // ─── Create / update / delete project ──────────────────────────────────
 
-router.post("/projects", requireTeam, canWrite, async (req, res): Promise<void> => {
+router.post("/projects", canWrite, async (req, res): Promise<void> => {
   const teamId = req.user!.teamId!;
   const parsed = insertProjectSchema.safeParse({ ...req.body, teamId });
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  if (!(await validateLeadInTeam(teamId, parsed.data.leadUserId))) {
+    res.status(400).json({ error: "leadUserId must be a lead/director in the same team" });
     return;
   }
 
@@ -96,7 +115,7 @@ router.post("/projects", requireTeam, canWrite, async (req, res): Promise<void> 
   });
 });
 
-router.patch("/projects/:id", requireTeam, canWrite, async (req, res): Promise<void> => {
+router.patch("/projects/:id", canWrite, async (req, res): Promise<void> => {
   const teamId = req.user!.teamId!;
   const id = Number(req.params.id);
   if (!Number.isInteger(id)) {
@@ -110,8 +129,28 @@ router.patch("/projects/:id", requireTeam, canWrite, async (req, res): Promise<v
     return;
   }
 
-  const { teamId: _ignoreTeam, id: _ignoreId, createdAt: _ignoreCreated, ...rest } = req.body ?? {};
-  const updates = { ...rest, updatedAt: new Date() };
+  // Whitelist editable fields to avoid pass-through of sensitive columns.
+  const ALLOWED = [
+    "name",
+    "clientName",
+    "leadUserId",
+    "status",
+    "description",
+    "reviewDate",
+    "trend",
+  ] as const;
+  const body = req.body ?? {};
+  const updates: Record<string, unknown> = { updatedAt: new Date() };
+  for (const key of ALLOWED) {
+    if (key in body) updates[key] = body[key];
+  }
+
+  if ("leadUserId" in updates) {
+    if (!(await validateLeadInTeam(teamId, updates.leadUserId))) {
+      res.status(400).json({ error: "leadUserId must be a lead/director in the same team" });
+      return;
+    }
+  }
 
   const [project] = await db
     .update(projectsTable)
@@ -126,7 +165,7 @@ router.patch("/projects/:id", requireTeam, canWrite, async (req, res): Promise<v
   });
 });
 
-router.delete("/projects/:id", requireTeam, canWrite, async (req, res): Promise<void> => {
+router.delete("/projects/:id", canWrite, async (req, res): Promise<void> => {
   const teamId = req.user!.teamId!;
   const id = Number(req.params.id);
   if (!Number.isInteger(id)) {
@@ -148,7 +187,6 @@ router.delete("/projects/:id", requireTeam, canWrite, async (req, res): Promise<
 
 router.post(
   "/projects/:id/health-checks",
-  requireTeam,
   canWrite,
   async (req, res): Promise<void> => {
     const teamId = req.user!.teamId!;
@@ -190,7 +228,6 @@ router.post(
 
 router.patch(
   "/projects/:id/health-checks/:checkId",
-  requireTeam,
   canWrite,
   async (req, res): Promise<void> => {
     const teamId = req.user!.teamId!;
@@ -236,7 +273,6 @@ router.patch(
 
 router.delete(
   "/projects/:id/health-checks/:checkId",
-  requireTeam,
   canWrite,
   async (req, res): Promise<void> => {
     const teamId = req.user!.teamId!;
@@ -270,7 +306,6 @@ router.delete(
 
 router.post(
   "/projects/:id/assignments",
-  requireTeam,
   canWrite,
   async (req, res): Promise<void> => {
     const teamId = req.user!.teamId!;
@@ -287,6 +322,15 @@ router.post(
       return;
     }
 
+    const [target] = await db
+      .select({ id: usersTable.id, teamId: usersTable.teamId })
+      .from(usersTable)
+      .where(eq(usersTable.id, userId));
+    if (!target || target.teamId !== teamId) {
+      res.status(400).json({ error: "User not in this team" });
+      return;
+    }
+
     const [assignment] = await db
       .insert(projectAssignmentsTable)
       .values({ projectId: id, userId })
@@ -299,7 +343,6 @@ router.post(
 
 router.delete(
   "/projects/:id/assignments/:userId",
-  requireTeam,
   canWrite,
   async (req, res): Promise<void> => {
     const teamId = req.user!.teamId!;
