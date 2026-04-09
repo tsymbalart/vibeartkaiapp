@@ -348,6 +348,38 @@ async function upsertUser(
   return newUser;
 }
 
+/**
+ * Dev-only bypass: instantly signs in as the first director user.
+ * Disabled in production so it cannot be abused.
+ */
+router.get("/dev-login", async (req: Request, res: Response) => {
+  if (process.env.NODE_ENV === "production") {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+
+  const DEV_EMAIL = "a.tsymbal@artk.ai";
+  const [user] = await db
+    .select()
+    .from(usersTable)
+    .where(eq(usersTable.email, DEV_EMAIL));
+
+  if (!user) {
+    res.status(500).json({ error: "Dev user not seeded yet — restart the server." });
+    return;
+  }
+
+  const sessionData: SessionData = {
+    user: toAppUser(user),
+    access_token: "dev-token",
+  };
+  const sid = await createSession(sessionData);
+  setSessionCookie(res, sid);
+
+  const returnTo = getSafeReturnTo(req.query.returnTo);
+  res.redirect(returnTo);
+});
+
 router.get("/auth/user", async (req: Request, res: Response) => {
   if (!req.isAuthenticated()) {
     res.json({ user: null });
