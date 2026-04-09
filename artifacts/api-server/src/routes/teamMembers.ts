@@ -239,6 +239,89 @@ router.post("/invitations", requireLeadOrDirector, async (req, res): Promise<voi
   res.status(201).json(invitation);
 });
 
+/**
+ * Bulk invite: accepts up to 50 emails in one request, processes each
+ * independently, and returns per-email results so the frontend can show
+ * which succeeded and which failed (e.g., "already a member").
+ */
+router.post("/invitations/bulk", requireLeadOrDirector, async (req, res): Promise<void> => {
+  const rawEmails: unknown = req.body?.emails;
+  if (!Array.isArray(rawEmails) || rawEmails.length === 0) {
+    res.status(400).json({ error: "emails must be a non-empty array" });
+    return;
+  }
+  if (rawEmails.length > 50) {
+    res.status(400).json({ error: "Maximum 50 emails per request" });
+    return;
+  }
+
+  const inviteRole: string = req.body?.role || "member";
+  if (!["member", "lead", "director"].includes(inviteRole)) {
+    res.status(400).json({ error: "Invalid role" });
+    return;
+  }
+  if ((inviteRole === "lead" || inviteRole === "director") && req.user!.role !== "director") {
+    res.status(403).json({ error: "Only directors can invite leads or directors" });
+    return;
+  }
+
+  const teamId = req.user!.teamId!;
+  const invitedBy = req.user!.id;
+  const results: Array<{
+    email: string;
+    status: "created" | "error";
+    error?: string;
+    invitation?: typeof invitationsTable.$inferSelect;
+  }> = [];
+
+  for (const raw of rawEmails) {
+    const email = normalizeEmail(raw);
+    if (!email) {
+      results.push({ email: String(raw), status: "error", error: "Invalid email" });
+      continue;
+    }
+
+    const [existingUser] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.email, email));
+    if (existingUser && existingUser.teamId === teamId) {
+      results.push({ email, status: "error", error: "Already a team member" });
+      continue;
+    }
+
+    const [existingInvite] = await db
+      .select()
+      .from(invitationsTable)
+      .where(
+        and(
+          eq(invitationsTable.email, email),
+          eq(invitationsTable.status, "pending"),
+          eq(invitationsTable.teamId, teamId)
+        )
+      );
+    if (existingInvite) {
+      results.push({ email, status: "error", error: "Invitation already pending" });
+      continue;
+    }
+
+    const token = crypto.randomBytes(32).toString("hex");
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+
+    const [invitation] = await db
+      .insert(invitationsTable)
+      .values({ email, role: inviteRole, teamId, invitedBy, token, expiresAt })
+      .returning();
+
+    results.push({ email, status: "created", invitation });
+  }
+
+  const created = results.filter((r) => r.status === "created").length;
+  const failed = results.filter((r) => r.status === "error").length;
+  res.status(created > 0 ? 201 : 200).json({ results, summary: { created, failed } });
+});
+
 router.delete("/invitations/:id", requireLeadOrDirector, async (req, res): Promise<void> => {
   const id = intParam(req, "id");
   if (id == null) {

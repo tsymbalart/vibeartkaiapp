@@ -1,11 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { useRole } from "@/context/RoleContext";
 import { apiFetch, apiUrl, fetchWithAuth } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
   BiSolidCog,
@@ -623,25 +625,70 @@ const ROLE_OPTIONS = [
   { value: "director", label: "Director" },
 ];
 
+interface BulkResult {
+  email: string;
+  status: "created" | "error";
+  error?: string;
+}
+
 function TeamMembersManagement({ members, invitations }: { members: TeamUser[]; invitations: Invitation[] }) {
   const queryClient = useQueryClient();
   const { user: currentUser } = useAuth();
-  const [inviteEmail, setInviteEmail] = useState("");
+  const { toast } = useToast();
+  const [inviteEmails, setInviteEmails] = useState<string[]>([]);
+  const [emailInput, setEmailInput] = useState("");
   const [inviteRole, setInviteRole] = useState("member");
   const [showInviteForm, setShowInviteForm] = useState(false);
   const [confirmRemoveId, setConfirmRemoveId] = useState<number | null>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [bulkResults, setBulkResults] = useState<BulkResult[] | null>(null);
+  const emailInputRef = useRef<HTMLInputElement>(null);
 
   const pendingInvites = invitations.filter((i) => i.status === "pending");
 
   const copyInviteLink = (inv: Invitation) => {
-    // Build a tokenised claim URL. The callback consumes the token
-    // exactly once and binds the new user to the invited team+role.
     const link = `${window.location.origin}/api/claim-invite?token=${encodeURIComponent(inv.token)}`;
     navigator.clipboard.writeText(link).then(() => {
       setCopiedId(inv.id);
       setTimeout(() => setCopiedId(null), 2000);
     });
+  };
+
+  /** Parse raw text into valid email tags, deduplicating against existing tags. */
+  const addEmailsFromText = (text: string) => {
+    const parts = text.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+    const valid = parts.filter((e) => e.includes("@") && !inviteEmails.includes(e));
+    if (valid.length > 0) {
+      setInviteEmails((prev) => [...prev, ...valid]);
+    }
+  };
+
+  const removeEmail = (email: string) => {
+    setInviteEmails((prev) => prev.filter((e) => e !== email));
+    setBulkResults((prev) => prev ? prev.filter((r) => r.email !== email) : null);
+  };
+
+  const handleEmailKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault();
+      if (emailInput.trim()) {
+        addEmailsFromText(emailInput);
+        setEmailInput("");
+      }
+    }
+    // Backspace removes the last tag when the input is empty
+    if (e.key === "Backspace" && emailInput === "" && inviteEmails.length > 0) {
+      setInviteEmails((prev) => prev.slice(0, -1));
+    }
+  };
+
+  const handleEmailPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const pasted = e.clipboardData.getData("text");
+    if (pasted.includes(",")) {
+      e.preventDefault();
+      addEmailsFromText(pasted);
+      setEmailInput("");
+    }
   };
 
   const changeRole = useMutation({
@@ -681,24 +728,48 @@ function TeamMembersManagement({ members, invitations }: { members: TeamUser[]; 
     },
   });
 
-  const sendInvite = useMutation({
+  const sendBulkInvites = useMutation({
     mutationFn: async () => {
-      const resp = await fetchWithAuth(apiUrl("/api/invitations"), {
+      const resp = await fetchWithAuth(apiUrl("/api/invitations/bulk"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: inviteEmail, role: inviteRole }),
+        body: JSON.stringify({ emails: inviteEmails, role: inviteRole }),
       });
       if (!resp.ok) {
         const data = await resp.json();
-        throw new Error(data.error || "Failed to send invitation");
+        throw new Error(data.error || "Failed to send invitations");
       }
-      return resp.json();
+      return resp.json() as Promise<{
+        results: BulkResult[];
+        summary: { created: number; failed: number };
+      }>;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["invitations"] });
-      setInviteEmail("");
-      setInviteRole("member");
-      setShowInviteForm(false);
+      setBulkResults(data.results);
+
+      // Remove successfully invited emails from the tag list
+      const succeededEmails = new Set(
+        data.results.filter((r) => r.status === "created").map((r) => r.email)
+      );
+      const remaining = inviteEmails.filter((e) => !succeededEmails.has(e));
+      setInviteEmails(remaining);
+
+      if (data.summary.created > 0) {
+        toast({
+          title: `${data.summary.created} invitation${data.summary.created > 1 ? "s" : ""} sent`,
+          description: data.summary.failed > 0
+            ? `${data.summary.failed} could not be sent — see details below.`
+            : undefined,
+        });
+      }
+
+      // Close form if everything succeeded
+      if (remaining.length === 0) {
+        setShowInviteForm(false);
+        setInviteRole("member");
+        setBulkResults(null);
+      }
     },
   });
 
@@ -760,46 +831,94 @@ function TeamMembersManagement({ members, invitations }: { members: TeamUser[]; 
       <CardContent className="space-y-4">
         {showInviteForm && (
           <div className="p-4 rounded-xl bg-secondary/50 space-y-3">
-            <p className="text-sm font-medium">Invite a new member</p>
+            <p className="text-sm font-medium">Invite team members</p>
             <div className="flex gap-2">
-              <Input
-                type="email"
-                placeholder="Email address"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                className="flex-1 rounded-lg text-sm"
-              />
+              {/* Tag input container */}
+              <div
+                className="flex-1 flex flex-wrap items-center gap-1.5 min-h-[38px] px-2.5 py-1.5 rounded-lg border border-border bg-background cursor-text"
+                onClick={() => emailInputRef.current?.focus()}
+              >
+                {inviteEmails.map((email) => {
+                  const result = bulkResults?.find((r) => r.email === email);
+                  return (
+                    <Badge
+                      key={email}
+                      variant={result?.status === "error" ? "destructive" : "secondary"}
+                      className="gap-1 pl-2 pr-1 py-0.5 text-xs font-normal"
+                    >
+                      {email}
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); removeEmail(email); }}
+                        className="rounded-sm hover:bg-foreground/10 p-0.5"
+                        aria-label={`Remove ${email}`}
+                      >
+                        <BiX className="w-3 h-3" />
+                      </button>
+                    </Badge>
+                  );
+                })}
+                <input
+                  ref={emailInputRef}
+                  type="text"
+                  placeholder={inviteEmails.length === 0 ? "Enter emails separated by commas" : ""}
+                  value={emailInput}
+                  onChange={(e) => setEmailInput(e.target.value)}
+                  onKeyDown={handleEmailKeyDown}
+                  onPaste={handleEmailPaste}
+                  onBlur={() => {
+                    if (emailInput.trim()) {
+                      addEmailsFromText(emailInput);
+                      setEmailInput("");
+                    }
+                  }}
+                  className="flex-1 min-w-[120px] bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                  data-testid="input-invite-emails"
+                />
+              </div>
               <select
                 value={inviteRole}
                 onChange={(e) => setInviteRole(e.target.value)}
-                className="px-3 py-2 rounded-lg border border-border bg-background text-sm"
+                className="px-3 py-2 rounded-lg border border-border bg-background text-sm self-start"
               >
                 {availableRoles.map((r) => (
                   <option key={r.value} value={r.value}>{r.label}</option>
                 ))}
               </select>
             </div>
+            {/* Per-email error details */}
+            {bulkResults && bulkResults.some((r) => r.status === "error") && (
+              <div className="space-y-1">
+                {bulkResults.filter((r) => r.status === "error").map((r) => (
+                  <p key={r.email} className="text-xs text-destructive">
+                    {r.email}: {r.error}
+                  </p>
+                ))}
+              </div>
+            )}
             <div className="flex gap-2 justify-end">
               <Button
                 variant="ghost"
                 size="sm"
                 className="rounded-lg text-xs"
-                onClick={() => { setShowInviteForm(false); setInviteEmail(""); }}
+                onClick={() => { setShowInviteForm(false); setInviteEmails([]); setEmailInput(""); setBulkResults(null); }}
               >
                 Cancel
               </Button>
               <Button
                 size="sm"
                 className="rounded-lg text-xs gap-1.5"
-                onClick={() => sendInvite.mutate()}
-                disabled={!inviteEmail.includes("@") || sendInvite.isPending}
+                onClick={() => sendBulkInvites.mutate()}
+                disabled={inviteEmails.length === 0 || sendBulkInvites.isPending}
               >
                 <BiSolidEnvelope className="w-3 h-3" />
-                {sendInvite.isPending ? "Sending…" : "Send Invite"}
+                {sendBulkInvites.isPending
+                  ? "Sending…"
+                  : `Send ${inviteEmails.length > 0 ? inviteEmails.length : ""} Invite${inviteEmails.length !== 1 ? "s" : ""}`}
               </Button>
             </div>
-            {sendInvite.isError && (
-              <p className="text-xs text-destructive">{(sendInvite.error as Error).message}</p>
+            {sendBulkInvites.isError && (
+              <p className="text-xs text-destructive">{(sendBulkInvites.error as Error).message}</p>
             )}
           </div>
         )}
