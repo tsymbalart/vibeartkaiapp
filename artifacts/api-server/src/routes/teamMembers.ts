@@ -4,6 +4,7 @@ import { db, usersTable, invitationsTable, userSubTeamsTable } from "@workspace/
 import { eq, and, inArray } from "drizzle-orm";
 import { requireTeam, requireLeadOrDirector } from "../middlewares/requireAuth";
 import { intParam } from "../lib/params";
+import { sendInviteEmail } from "../lib/mailer";
 
 const router: IRouter = Router();
 
@@ -236,6 +237,9 @@ router.post("/invitations", requireLeadOrDirector, async (req, res): Promise<voi
     })
     .returning();
 
+  // Fire-and-forget: send the invitation email without blocking the response.
+  sendInviteEmail(email, req.user!.name, inviteRole, invitation.token).catch(() => {});
+
   res.status(201).json(invitation);
 });
 
@@ -315,6 +319,9 @@ router.post("/invitations/bulk", requireLeadOrDirector, async (req, res): Promis
       .returning();
 
     results.push({ email, status: "created", invitation });
+
+    // Fire-and-forget invite email
+    sendInviteEmail(email, req.user!.name, inviteRole, invitation.token).catch(() => {});
   }
 
   const created = results.filter((r) => r.status === "created").length;

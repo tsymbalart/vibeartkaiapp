@@ -29,6 +29,9 @@ router.get("/pulse-settings", requireTeam, async (req, res): Promise<void> => {
         belonging: "normal",
       },
       scoringMode: "latest_only",
+      reminderEnabled: false,
+      reminderDay: 1,
+      reminderHour: 9,
     });
     return;
   }
@@ -38,7 +41,7 @@ router.get("/pulse-settings", requireTeam, async (req, res): Promise<void> => {
 
 router.put("/pulse-settings", requireRole("lead", "director"), async (req, res): Promise<void> => {
   const teamId = req.user!.teamId!;
-  const { sessionSize, pillarWeights, scoringMode } = req.body;
+  const { sessionSize, pillarWeights, scoringMode, reminderEnabled, reminderDay, reminderHour } = req.body;
 
   const VALID_SCORING_MODES = ["latest_only", "average_all"];
   if (scoringMode !== undefined && !VALID_SCORING_MODES.includes(scoringMode)) {
@@ -48,6 +51,16 @@ router.put("/pulse-settings", requireRole("lead", "director"), async (req, res):
 
   if (sessionSize !== undefined && (typeof sessionSize !== "number" || sessionSize < 3 || sessionSize > 20)) {
     res.status(400).json({ error: "sessionSize must be a number between 3 and 20" });
+    return;
+  }
+
+  if (reminderDay !== undefined && (typeof reminderDay !== "number" || reminderDay < 0 || reminderDay > 6)) {
+    res.status(400).json({ error: "reminderDay must be 0 (Sunday) through 6 (Saturday)" });
+    return;
+  }
+
+  if (reminderHour !== undefined && (typeof reminderHour !== "number" || reminderHour < 0 || reminderHour > 23)) {
+    res.status(400).json({ error: "reminderHour must be 0 through 23" });
     return;
   }
 
@@ -65,9 +78,15 @@ router.put("/pulse-settings", requireRole("lead", "director"), async (req, res):
     }
   }
 
-  // Atomic upsert against the `pulse_settings_team_id_unique` constraint.
-  // Avoids the read-then-write race where two concurrent PUTs both miss
-  // the existing row and end up inserting duplicates.
+  // Build the conflict-update set from provided fields.
+  const updateSet: Record<string, unknown> = {};
+  if (sessionSize !== undefined) updateSet.sessionSize = sessionSize;
+  if (pillarWeights !== undefined) updateSet.pillarWeights = pillarWeights;
+  if (scoringMode !== undefined) updateSet.scoringMode = scoringMode;
+  if (reminderEnabled !== undefined) updateSet.reminderEnabled = !!reminderEnabled;
+  if (reminderDay !== undefined) updateSet.reminderDay = reminderDay;
+  if (reminderHour !== undefined) updateSet.reminderHour = reminderHour;
+
   const [row] = await db
     .insert(pulseSettingsTable)
     .values({
@@ -75,14 +94,13 @@ router.put("/pulse-settings", requireRole("lead", "director"), async (req, res):
       sessionSize: sessionSize ?? 8,
       pillarWeights: pillarWeights ?? {},
       scoringMode: scoringMode ?? "latest_only",
+      reminderEnabled: reminderEnabled ?? false,
+      reminderDay: reminderDay ?? 1,
+      reminderHour: reminderHour ?? 9,
     })
     .onConflictDoUpdate({
       target: pulseSettingsTable.teamId,
-      set: {
-        ...(sessionSize !== undefined ? { sessionSize } : {}),
-        ...(pillarWeights !== undefined ? { pillarWeights } : {}),
-        ...(scoringMode !== undefined ? { scoringMode } : {}),
-      },
+      set: updateSet,
     })
     .returning();
 

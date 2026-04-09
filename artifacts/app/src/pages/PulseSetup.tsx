@@ -86,6 +86,9 @@ interface PulseSettings {
   teamId: number;
   sessionSize: number;
   pillarWeights: Record<string, string>;
+  reminderEnabled?: boolean;
+  reminderDay?: number;
+  reminderHour?: number;
 }
 
 interface QuestionFormData {
@@ -385,6 +388,89 @@ export default function PulseSetup() {
                 </div>
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Weekly Reminders */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BiSolidCog className="w-5 h-5 text-primary" />
+              Weekly Reminders
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">Send weekly reminders</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Teammates who haven't completed their pulse check in the last 7 days will receive a reminder email.
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={settings?.reminderEnabled ?? false}
+                onClick={() =>
+                  updateSettingsMutation.mutate({
+                    reminderEnabled: !(settings?.reminderEnabled ?? false),
+                  })
+                }
+                className={cn(
+                  "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors",
+                  settings?.reminderEnabled ? "bg-primary" : "bg-muted",
+                )}
+              >
+                <span
+                  className={cn(
+                    "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg transition-transform",
+                    settings?.reminderEnabled ? "translate-x-5" : "translate-x-0",
+                  )}
+                />
+              </button>
+            </div>
+
+            {(settings?.reminderEnabled ?? false) && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Day</Label>
+                  <Select
+                    value={String(settings?.reminderDay ?? 1)}
+                    onValueChange={(v) =>
+                      updateSettingsMutation.mutate({ reminderDay: Number(v) })
+                    }
+                  >
+                    <SelectTrigger className="rounded-lg text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map((day, i) => (
+                        <SelectItem key={i} value={String(i)}>{day}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Time (UTC)</Label>
+                  <Select
+                    value={String(settings?.reminderHour ?? 9)}
+                    onValueChange={(v) =>
+                      updateSettingsMutation.mutate({ reminderHour: Number(v) })
+                    }
+                  >
+                    <SelectTrigger className="rounded-lg text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 24 }, (_, h) => {
+                        const label = h === 0 ? "12 AM" : h < 12 ? `${h} AM` : h === 12 ? "12 PM" : `${h - 12} PM`;
+                        return <SelectItem key={h} value={String(h)}>{label}</SelectItem>;
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
