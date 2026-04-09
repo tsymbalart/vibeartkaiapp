@@ -382,6 +382,84 @@ router.post("/dev-login", async (req: Request, res: Response) => {
   res.json({ user: toAppUser(user) });
 });
 
+/**
+ * Public config the frontend needs to initialise Google Identity Services.
+ * The client-id is NOT secret — it's embedded in every page on normal
+ * deployments. We surface it here so the Vite build doesn't need to know
+ * about it at build time.
+ */
+router.get("/auth/config", (_req: Request, res: Response) => {
+  res.json({ googleClientId: process.env.GOOGLE_CLIENT_ID ?? null });
+});
+
+/**
+ * Credential exchange for the Google Identity Services (GIS) one-tap /
+ * button flow. The browser sends the signed JWT directly to us; we verify
+ * it server-side and create a session — no redirects needed, so this works
+ * inside iframes (Replit preview, embedded dashboards, …).
+ */
+router.post("/auth/google-credential", async (req: Request, res: Response) => {
+  const credential = typeof req.body?.credential === "string" ? req.body.credential : null;
+  if (!credential) {
+    res.status(400).json({ error: "Missing credential" });
+    return;
+  }
+
+  let sub: string;
+  let email: string | undefined;
+  let emailVerified: boolean | undefined;
+  let name: string | undefined;
+  let picture: string | undefined;
+  try {
+    const client = getOAuth2Client();
+    const ticket = await client.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID!,
+    });
+    const p = ticket.getPayload()!;
+    sub = p.sub;
+    email = p.email;
+    emailVerified = p.email_verified;
+    name = p.name;
+    picture = p.picture;
+  } catch (err) {
+    logger.warn({ err }, "[auth/google-credential] Token verification failed");
+    res.status(401).json({ error: "Invalid credential" });
+    return;
+  }
+
+  if (!sub) {
+    res.status(401).json({ error: "Invalid token payload" });
+    return;
+  }
+
+  const pendingToken =
+    typeof req.cookies?.[PENDING_INVITE_COOKIE] === "string"
+      ? req.cookies[PENDING_INVITE_COOKIE]
+      : null;
+
+  const dbUser = await upsertUser(
+    { sub, email, email_verified: emailVerified, name, picture },
+    pendingToken,
+  );
+
+  if (!dbUser) {
+    res.status(403).json({ error: "not_authorized" });
+    return;
+  }
+
+  clearPendingInviteCookie(res);
+
+  const sessionData: SessionData = {
+    user: toAppUser(dbUser),
+    access_token: credential,
+  };
+  const sid = await createSession(sessionData);
+  setSessionCookie(res, sid);
+
+  res.json({ user: toAppUser(dbUser) });
+});
+
 router.get("/auth/user", async (req: Request, res: Response) => {
   if (!req.isAuthenticated()) {
     res.json({ user: null });
