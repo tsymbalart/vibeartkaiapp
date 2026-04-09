@@ -27,7 +27,7 @@ export default function Login() {
         </div>
 
         {authError === "not_authorized" && (
-          <div className="p-4 rounded-xl border border-destructive/30 bg-destructive/10 text-left space-y-1.5">
+          <div className="p-4 rounded-xl border border-destructive/30 bg-destructive/10 text-left space-y-1.5" role="alert">
             <p className="text-sm font-medium text-destructive">Access denied</p>
             <p className="text-xs text-destructive/80 leading-relaxed">
               This Google account isn't on the Artkai Pulse allowlist and has no pending
@@ -36,11 +36,20 @@ export default function Login() {
           </div>
         )}
         {authError === "invalid_invite" && (
-          <div className="p-4 rounded-xl border border-destructive/30 bg-destructive/10 text-left space-y-1.5">
+          <div className="p-4 rounded-xl border border-destructive/30 bg-destructive/10 text-left space-y-1.5" role="alert">
             <p className="text-sm font-medium text-destructive">Invitation expired</p>
             <p className="text-xs text-destructive/80 leading-relaxed">
               The invitation link is invalid, already used, or expired. Ask a director
               to send you a fresh invitation.
+            </p>
+          </div>
+        )}
+        {authError && !["not_authorized", "invalid_invite"].includes(authError) && (
+          <div className="p-4 rounded-xl border border-destructive/30 bg-destructive/10 text-left space-y-1.5" role="alert">
+            <p className="text-sm font-medium text-destructive">Sign-in failed</p>
+            <p className="text-xs text-destructive/80 leading-relaxed">
+              Something went wrong during Google sign-in ({authError}). Please try again
+              or contact a director if the problem persists.
             </p>
           </div>
         )}

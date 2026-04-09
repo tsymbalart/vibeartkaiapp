@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, usersTable, invitationsTable, teamsTable, allowedEmailsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
+import { logger } from "../lib/logger";
 import {
   clearSession,
   getOAuth2Client,
@@ -29,11 +30,19 @@ function getOrigin(req: Request): string {
   return `${proto}://${host}`;
 }
 
+// `SameSite=None` is required only when the frontend lives on a
+// different site from the API (e.g., claude.ai hosting + separate
+// api domain). For same-site deploys prefer `Lax`, which blocks most
+// CSRF vectors on state-changing requests.
+const CROSS_SITE_COOKIES = process.env.CROSS_SITE_COOKIES === "true";
+const COOKIE_SAMESITE: "none" | "lax" = CROSS_SITE_COOKIES ? "none" : "lax";
+const COOKIE_SECURE = CROSS_SITE_COOKIES || process.env.NODE_ENV === "production";
+
 function setSessionCookie(res: Response, sid: string) {
   res.cookie(SESSION_COOKIE, sid, {
     httpOnly: true,
-    secure: true,
-    sameSite: "none",
+    secure: COOKIE_SECURE,
+    sameSite: COOKIE_SAMESITE,
     path: "/",
     maxAge: SESSION_TTL,
   });
@@ -42,8 +51,8 @@ function setSessionCookie(res: Response, sid: string) {
 function setTempCookie(res: Response, name: string, value: string) {
   res.cookie(name, value, {
     httpOnly: true,
-    secure: true,
-    sameSite: "none",
+    secure: COOKIE_SECURE,
+    sameSite: COOKIE_SAMESITE,
     path: "/",
     maxAge: OIDC_COOKIE_TTL,
   });
@@ -52,8 +61,8 @@ function setTempCookie(res: Response, name: string, value: string) {
 function setPendingInviteCookie(res: Response, token: string) {
   res.cookie(PENDING_INVITE_COOKIE, token, {
     httpOnly: true,
-    secure: true,
-    sameSite: "none",
+    secure: COOKIE_SECURE,
+    sameSite: COOKIE_SAMESITE,
     path: "/",
     maxAge: PENDING_INVITE_TTL,
   });
@@ -419,20 +428,23 @@ router.get("/callback", async (req: Request, res: Response) => {
   const error = req.query.error as string | undefined;
 
   if (error) {
-    console.error("[auth callback] OAuth error from Google:", error);
-    res.redirect("/");
+    logger.warn({ error }, "[auth callback] OAuth error from Google");
+    res.redirect("/?auth_error=oauth_error");
     return;
   }
 
   if (!code) {
-    console.error("[auth callback] No authorization code received");
-    res.redirect("/api/login");
+    logger.warn("[auth callback] No authorization code received");
+    res.redirect("/?auth_error=missing_code");
     return;
   }
 
   if (!expectedState || state !== expectedState) {
-    console.error("[auth callback] State mismatch", { hasExpectedState: !!expectedState, hasState: !!state });
-    res.redirect("/api/login");
+    logger.warn(
+      { hasExpectedState: !!expectedState, hasState: !!state },
+      "[auth callback] State mismatch",
+    );
+    res.redirect("/?auth_error=state_mismatch");
     return;
   }
 
@@ -441,14 +453,14 @@ router.get("/callback", async (req: Request, res: Response) => {
     const { tokens: t } = await client.getToken(code);
     tokens = t;
   } catch (err) {
-    console.error("[auth callback] Token exchange failed", err);
-    res.redirect("/");
+    logger.error({ err }, "[auth callback] Token exchange failed");
+    res.redirect("/?auth_error=token_exchange_failed");
     return;
   }
 
   if (!tokens.id_token) {
-    console.error("[auth callback] No id_token in response");
-    res.redirect("/");
+    logger.error("[auth callback] No id_token in response");
+    res.redirect("/?auth_error=no_id_token");
     return;
   }
 
@@ -460,14 +472,14 @@ router.get("/callback", async (req: Request, res: Response) => {
     });
     payload = ticket.getPayload();
   } catch (err) {
-    console.error("[auth callback] ID token verification failed", err);
-    res.redirect("/");
+    logger.error({ err }, "[auth callback] ID token verification failed");
+    res.redirect("/?auth_error=invalid_id_token");
     return;
   }
 
   if (!payload || !payload.sub) {
-    console.error("[auth callback] Invalid token payload");
-    res.redirect("/");
+    logger.error("[auth callback] Invalid token payload");
+    res.redirect("/?auth_error=invalid_id_token");
     return;
   }
 
