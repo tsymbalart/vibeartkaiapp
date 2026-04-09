@@ -37,7 +37,7 @@ function formatCheckIn(c: typeof checkInsTable.$inferSelect) {
   };
 }
 
-function formatResponse(r: any) {
+function formatResponse(r: typeof responsesTable.$inferSelect) {
   return {
     id: r.id,
     questionId: r.questionId,

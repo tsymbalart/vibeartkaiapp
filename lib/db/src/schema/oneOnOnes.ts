@@ -6,9 +6,9 @@ import { usersTable } from "./users";
 
 export const oneOnOneNotesTable = pgTable("one_on_one_notes", {
   id: serial("id").primaryKey(),
-  teamId: integer("team_id").notNull().references(() => teamsTable.id),
-  leadUserId: integer("lead_user_id").notNull().references(() => usersTable.id),
-  memberUserId: integer("member_user_id").notNull().references(() => usersTable.id),
+  teamId: integer("team_id").notNull().references(() => teamsTable.id, { onDelete: "cascade" }),
+  leadUserId: integer("lead_user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  memberUserId: integer("member_user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
   meetingDate: date("meeting_date").notNull(),
   checkIn: text("check_in"),
   lookingBack: text("looking_back"),
@@ -29,9 +29,9 @@ export const oneOnOneActionItemsTable = pgTable("one_on_one_action_items", {
 
 export const oneOnOneRemindersTable = pgTable("one_on_one_reminders", {
   id: serial("id").primaryKey(),
-  teamId: integer("team_id").notNull().references(() => teamsTable.id),
-  leadUserId: integer("lead_user_id").notNull().references(() => usersTable.id),
-  memberUserId: integer("member_user_id").notNull().references(() => usersTable.id),
+  teamId: integer("team_id").notNull().references(() => teamsTable.id, { onDelete: "cascade" }),
+  leadUserId: integer("lead_user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  memberUserId: integer("member_user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
   intervalWeeks: integer("interval_weeks").notNull().default(4),
   nextDate: date("next_date"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

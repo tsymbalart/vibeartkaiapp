@@ -86,7 +86,7 @@ async function computePillarScores(windowDays: number, teamId: number, subTeamUs
   const currentCiIds = filteredCheckIns.map((c) => c.id);
   const prevCiIds = prevOnlyCheckIns.map((c) => c.id);
 
-  let currentResponses: any[] = [];
+  let currentResponses: (typeof responsesTable.$inferSelect)[] = [];
   if (currentCiIds.length > 0) {
     currentResponses = await db
       .select()
@@ -94,7 +94,7 @@ async function computePillarScores(windowDays: number, teamId: number, subTeamUs
       .where(inArray(responsesTable.checkInId, currentCiIds));
   }
 
-  let prevResponses: any[] = [];
+  let prevResponses: (typeof responsesTable.$inferSelect)[] = [];
   if (prevCiIds.length > 0) {
     prevResponses = await db
       .select()
@@ -138,7 +138,7 @@ async function computePillarScores(windowDays: number, teamId: number, subTeamUs
     for (const r of currResponses) {
       const q = questionMap.get(r.questionId);
       const w = q?.impactWeight ?? 1.0;
-      weightedSum += r.normalizedScore * w;
+      weightedSum += r.normalizedScore! * w;
       totalWeight += w;
     }
     const score = totalWeight > 0 ? Math.round((weightedSum / totalWeight) * 10) / 10 : 0;
@@ -150,13 +150,13 @@ async function computePillarScores(windowDays: number, teamId: number, subTeamUs
       for (const r of pResponses) {
         const q = questionMap.get(r.questionId);
         const w = q?.impactWeight ?? 1.0;
-        pWeightedSum += r.normalizedScore * w;
+        pWeightedSum += r.normalizedScore! * w;
         pTotalWeight += w;
       }
       prevScore = pTotalWeight > 0 ? Math.round((pWeightedSum / pTotalWeight) * 10) / 10 : null;
     }
 
-    const favorableCount = currResponses.filter((r) => r.normalizedScore >= 75).length;
+    const favorableCount = currResponses.filter((r) => (r.normalizedScore ?? 0) >= 75).length;
     const favorability = currResponses.length > 0 ? Math.round((favorableCount / currResponses.length) * 100) : 0;
 
     return {
@@ -431,7 +431,7 @@ router.get("/my-journey", requireTeam, async (req, res): Promise<void> => {
   const questionMap = new Map(allQuestions.map((q) => [q.id, q]));
 
   const ciIds = userCheckIns.map((c) => c.id);
-  let allResponses: any[] = [];
+  let allResponses: (typeof responsesTable.$inferSelect)[] = [];
   if (ciIds.length > 0) {
     allResponses = await db
       .select()

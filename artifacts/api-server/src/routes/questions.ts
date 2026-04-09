@@ -290,8 +290,10 @@ router.get("/questions/session", requireTeam, async (req, res): Promise<void> =>
   );
 });
 
-function interleavePillars(questions: any[]): any[] {
-  const byPillar: Record<string, any[]> = {};
+type QuestionRow = typeof questionsTable.$inferSelect;
+
+function interleavePillars(questions: QuestionRow[]): QuestionRow[] {
+  const byPillar: Record<string, QuestionRow[]> = {};
   for (const q of questions) {
     if (!byPillar[q.pillar]) byPillar[q.pillar] = [];
     byPillar[q.pillar].push(q);
@@ -302,7 +304,7 @@ function interleavePillars(questions: any[]): any[] {
     byPillar[k] = shuffle(byPillar[k]);
   }
 
-  const result: any[] = [];
+  const result: QuestionRow[] = [];
   let added = true;
   while (added) {
     added = false;
@@ -316,8 +318,8 @@ function interleavePillars(questions: any[]): any[] {
   return result;
 }
 
-function weightedShuffle<T extends { weight: number; question: any }>(items: T[]): any[] {
-  const expanded: any[] = [];
+function weightedShuffle(items: { weight: number; question: QuestionRow }[]): QuestionRow[] {
+  const expanded: QuestionRow[] = [];
   for (const item of items) {
     const copies = Math.max(1, Math.round(item.weight * 2));
     for (let i = 0; i < copies; i++) {
@@ -326,7 +328,7 @@ function weightedShuffle<T extends { weight: number; question: any }>(items: T[]
   }
   const shuffled = shuffle(expanded);
   const seen = new Set<number>();
-  const result: any[] = [];
+  const result: QuestionRow[] = [];
   for (const q of shuffled) {
     if (!seen.has(q.id)) {
       seen.add(q.id);

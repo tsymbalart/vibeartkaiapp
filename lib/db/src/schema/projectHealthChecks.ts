@@ -9,7 +9,7 @@ const scoreField = z.number().int().min(1).max(3);
 export const projectHealthChecksTable = pgTable("project_health_checks", {
   id: serial("id").primaryKey(),
   projectId: integer("project_id").notNull().references(() => projectsTable.id, { onDelete: "cascade" }),
-  createdByUserId: integer("created_by_user_id").notNull().references(() => usersTable.id),
+  createdByUserId: integer("created_by_user_id").references(() => usersTable.id, { onDelete: "set null" }),
   capacity: integer("capacity").notNull(),
   clientSatisfaction: integer("client_satisfaction").notNull(),
   teamSatisfaction: integer("team_satisfaction").notNull(),

@@ -16,7 +16,7 @@ const scoreField = z.number().int().min(1).max(3);
  */
 export const registerItemsTable = pgTable("register_items", {
   id: serial("id").primaryKey(),
-  teamId: integer("team_id").notNull().references(() => teamsTable.id),
+  teamId: integer("team_id").notNull().references(() => teamsTable.id, { onDelete: "cascade" }),
   type: varchar("type", { length: 20 }).notNull(),
   linkedTo: varchar("linked_to", { length: 20 }).notNull(),
   projectId: integer("project_id").references(() => projectsTable.id, { onDelete: "cascade" }),
@@ -28,10 +28,10 @@ export const registerItemsTable = pgTable("register_items", {
   confidence: integer("confidence"),
   value: integer("value"),
   dueDate: date("due_date"),
-  responsibleUserId: integer("responsible_user_id").references(() => usersTable.id),
+  responsibleUserId: integer("responsible_user_id").references(() => usersTable.id, { onDelete: "set null" }),
   priority: integer("priority").notNull().default(0),
   status: varchar("status", { length: 20 }).notNull().default("new"),
-  createdByUserId: integer("created_by_user_id").notNull().references(() => usersTable.id),
+  createdByUserId: integer("created_by_user_id").references(() => usersTable.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   closedAt: timestamp("closed_at", { withTimezone: true }),

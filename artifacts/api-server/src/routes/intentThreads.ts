@@ -62,11 +62,21 @@ router.get("/intent-threads", requireLeadOrDirector, async (req, res): Promise<v
     }
   }
 
+  interface ThreadSummary {
+    id: number;
+    anonLabel: string;
+    status: string;
+    createdAt: Date;
+    messageCount: number;
+    lastActivity: string | null;
+    hasLeadReply: boolean;
+  }
+
   const topicGroups: Record<string, {
     topic: string;
     pillar: string;
     questionId: number | null;
-    threads: any[];
+    threads: ThreadSummary[];
   }> = {};
 
   for (const t of rawThreads) {
@@ -92,7 +102,7 @@ router.get("/intent-threads", requireLeadOrDirector, async (req, res): Promise<v
   }
 
   for (const group of Object.values(topicGroups)) {
-    group.threads.sort((a: any, b: any) => {
+    group.threads.sort((a, b) => {
       const aTime = a.lastActivity ? new Date(a.lastActivity).getTime() : 0;
       const bTime = b.lastActivity ? new Date(b.lastActivity).getTime() : 0;
       return bTime - aTime;
@@ -100,8 +110,8 @@ router.get("/intent-threads", requireLeadOrDirector, async (req, res): Promise<v
   }
 
   const grouped = Object.values(topicGroups).sort((a, b) => {
-    const aLatest = Math.max(...a.threads.map((t: any) => t.lastActivity ? new Date(t.lastActivity).getTime() : 0));
-    const bLatest = Math.max(...b.threads.map((t: any) => t.lastActivity ? new Date(t.lastActivity).getTime() : 0));
+    const aLatest = Math.max(...a.threads.map((t) => t.lastActivity ? new Date(t.lastActivity).getTime() : 0));
+    const bLatest = Math.max(...b.threads.map((t) => t.lastActivity ? new Date(t.lastActivity).getTime() : 0));
     return bLatest - aLatest;
   });
 

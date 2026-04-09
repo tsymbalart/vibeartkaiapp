@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import confetti from "canvas-confetti";
 import { DimensionBadge } from "@/components/ui/dimension-badge";
 import { useRole } from "@/context/RoleContext";
+import { useToast } from "@/hooks/use-toast";
 import { apiFetch, apiUrl, fetchWithAuth } from "@/lib/api";
 
 const LIKERT_OPTIONS = [
@@ -53,6 +54,7 @@ export default function CheckInFlow() {
   const [followUpOtherText, setFollowUpOtherText] = useState("");
   const [followUpComment, setFollowUpComment] = useState("");
   const { userId } = useRole();
+  const { toast } = useToast();
 
   const createCheckInMutation = useMutation({
     mutationFn: async () => {
@@ -89,9 +91,22 @@ export default function CheckInFlow() {
     },
   });
 
-  const { data: questions, isLoading: loadingQuestions } = useQuery<any[]>({
+  interface SessionQuestion {
+    id: number;
+    pillar: string;
+    questionText: string;
+    inputType: string;
+    options: string[] | null;
+    order: number;
+    impactWeight: number;
+    isCore: boolean;
+    isRequired: boolean;
+    followUpLogic: unknown;
+  }
+
+  const { data: questions, isLoading: loadingQuestions } = useQuery<SessionQuestion[]>({
     queryKey: ["session-questions", userId],
-    queryFn: () => apiFetch<any[]>("/api/questions/session"),
+    queryFn: () => apiFetch<SessionQuestion[]>("/api/questions/session"),
     enabled: step === "questions" || step === "followup",
   });
 
@@ -100,8 +115,8 @@ export default function CheckInFlow() {
       const result = await createCheckInMutation.mutateAsync();
       setCheckInId(result.id);
       setStep("questions");
-    } catch (e) {
-      console.error("Failed to start check-in", e);
+    } catch {
+      toast({ title: "Could not start check-in", description: "Please try again.", variant: "destructive" });
     }
   };
 
@@ -188,8 +203,8 @@ export default function CheckInFlow() {
         });
 
         setStep("outro");
-      } catch (e) {
-        console.error("Failed to submit", e);
+      } catch {
+        toast({ title: "Submission failed", description: "Your answers weren't saved. Please try again.", variant: "destructive" });
       }
     }
   };
@@ -680,7 +695,7 @@ export default function CheckInFlow() {
   );
 }
 
-function PulseIcon(props: any) {
+function PulseIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
       <path d="M22 12h-4l-3 9L9 3l-3 9H2" />

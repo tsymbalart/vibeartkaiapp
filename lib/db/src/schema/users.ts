@@ -10,7 +10,7 @@ export const usersTable = pgTable("users", {
   googleId: varchar("google_id").unique(),
   avatarUrl: text("avatar_url"),
   role: text("role").notNull().default("member"),
-  teamId: integer("team_id").references(() => teamsTable.id),
+  teamId: integer("team_id").references(() => teamsTable.id, { onDelete: "set null" }),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -19,7 +19,7 @@ export const usersTable = pgTable("users", {
   // These fields describe a user as a tracked design-ops person, independent
   // of their pulse membership (which is covered by `role`, `teamId`, sub-teams).
   roleTitle: varchar("role_title", { length: 255 }),
-  leadUserId: integer("lead_user_id").references((): AnyPgColumn => usersTable.id),
+  leadUserId: integer("lead_user_id").references((): AnyPgColumn => usersTable.id, { onDelete: "set null" }),
   employmentStatus: varchar("employment_status", { length: 20 }).notNull().default("active"),
   notes: text("notes"),
   reviewDate: date("review_date"),

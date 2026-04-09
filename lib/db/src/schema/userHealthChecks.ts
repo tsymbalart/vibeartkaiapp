@@ -13,7 +13,7 @@ const scoreField = z.number().int().min(1).max(3);
 export const userHealthChecksTable = pgTable("user_health_checks", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
-  createdByUserId: integer("created_by_user_id").notNull().references(() => usersTable.id),
+  createdByUserId: integer("created_by_user_id").references(() => usersTable.id, { onDelete: "set null" }),
   energy: integer("energy").notNull(),
   workloadBalance: integer("workload_balance").notNull(),
   roleClarity: integer("role_clarity").notNull(),

@@ -196,8 +196,8 @@ router.post("/users/:id/sub-teams", requireRole("lead", "director"), async (req,
 
   try {
     await db.insert(userSubTeamsTable).values({ userId, subTeamId });
-  } catch (e: any) {
-    if (e.code === "23505") {
+  } catch (e: unknown) {
+    if (e != null && typeof e === "object" && "code" in e && (e as { code: string }).code === "23505") {
       res.status(409).json({ error: "User already in this sub-team" });
       return;
     }

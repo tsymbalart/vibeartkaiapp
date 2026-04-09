@@ -78,7 +78,7 @@ interface Question {
   isCore: boolean;
   isRequired: boolean;
   source: string | null;
-  followUpLogic: any;
+  followUpLogic: unknown;
 }
 
 interface PulseSettings {

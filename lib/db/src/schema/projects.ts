@@ -6,10 +6,10 @@ import { usersTable } from "./users";
 
 export const projectsTable = pgTable("projects", {
   id: serial("id").primaryKey(),
-  teamId: integer("team_id").notNull().references(() => teamsTable.id),
+  teamId: integer("team_id").notNull().references(() => teamsTable.id, { onDelete: "cascade" }),
   name: varchar("name", { length: 255 }).notNull(),
   clientName: varchar("client_name", { length: 255 }).notNull(),
-  leadUserId: integer("lead_user_id").notNull().references(() => usersTable.id),
+  leadUserId: integer("lead_user_id").references(() => usersTable.id, { onDelete: "set null" }),
   status: varchar("status", { length: 20 }).notNull().default("active"),
   description: text("description"),
   reviewDate: date("review_date"),
