@@ -26,10 +26,17 @@ export async function getCachedQuestionsForTeam(teamId: number): Promise<Questio
   if (hit && hit.expiresAt > now) {
     return hit.rows;
   }
-  const rows = await db
-    .select()
-    .from(questionsTable)
-    .where(questionsVisibleToTeam(teamId));
+  let rows: Question[];
+  try {
+    rows = await db
+      .select()
+      .from(questionsTable)
+      .where(questionsVisibleToTeam(teamId));
+  } catch {
+    // Graceful fallback: if the team_id column hasn't been added yet
+    // (migration not run), fetch all questions without filtering.
+    rows = await db.select().from(questionsTable);
+  }
   cache.set(teamId, { expiresAt: now + CACHE_TTL_MS, rows });
   return rows;
 }

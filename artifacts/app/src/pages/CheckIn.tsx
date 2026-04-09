@@ -303,6 +303,25 @@ export default function CheckInFlow() {
     );
   }
 
+  if (questions.length === 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-6">
+        <div className="max-w-sm text-center space-y-4">
+          <div className="w-16 h-16 bg-primary/10 rounded-xl mx-auto flex items-center justify-center">
+            <BiSolidLock className="w-8 h-8 text-primary" />
+          </div>
+          <h2 className="text-xl font-medium">No questions available</h2>
+          <p className="text-sm text-muted-foreground">
+            Your team doesn't have any pulse questions set up yet. Ask a lead or director to configure them in Pulse Set-up.
+          </p>
+          <Button variant="outline" onClick={() => setLocation("/")}>
+            Back to Dashboard
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   const currentQ = questions[currentQIndex];
   const progress = ((currentQIndex + 1) / questions.length) * 100;
   const currentResponse = responses[currentQ.id];

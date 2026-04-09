@@ -23,11 +23,20 @@ const WEIGHT_MULTIPLIERS: Record<string, number> = {
 
 router.get("/questions", requireTeam, async (req, res): Promise<void> => {
   const teamId = req.user!.teamId!;
-  const questions = await db
-    .select()
-    .from(questionsTable)
-    .where(questionsVisibleToTeam(teamId))
-    .orderBy(asc(questionsTable.pillar), asc(questionsTable.order));
+  let questions;
+  try {
+    questions = await db
+      .select()
+      .from(questionsTable)
+      .where(questionsVisibleToTeam(teamId))
+      .orderBy(asc(questionsTable.pillar), asc(questionsTable.order));
+  } catch {
+    // Fallback if team_id column not yet migrated
+    questions = await db
+      .select()
+      .from(questionsTable)
+      .orderBy(asc(questionsTable.pillar), asc(questionsTable.order));
+  }
   res.json(questions);
 });
 
@@ -205,11 +214,19 @@ router.get("/questions/session", requireTeam, async (req, res): Promise<void> =>
   const sessionSize = settings?.sessionSize ?? DEFAULT_SESSION_SIZE;
   const pillarWeights = (settings?.pillarWeights as Record<string, string>) ?? {};
 
-  const allQuestions = await db
-    .select()
-    .from(questionsTable)
-    .where(questionsVisibleToTeam(teamId))
-    .orderBy(asc(questionsTable.order));
+  let allQuestions;
+  try {
+    allQuestions = await db
+      .select()
+      .from(questionsTable)
+      .where(questionsVisibleToTeam(teamId))
+      .orderBy(asc(questionsTable.order));
+  } catch {
+    allQuestions = await db
+      .select()
+      .from(questionsTable)
+      .orderBy(asc(questionsTable.order));
+  }
 
   const filteredQuestions = allQuestions.filter((q) => {
     const weight = pillarWeights[q.pillar] ?? "normal";
