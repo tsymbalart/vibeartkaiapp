@@ -32,7 +32,7 @@ app.use(
 // Lock CORS to the configured app origin in production; fall back to
 // echoing the request origin in development so a Vite dev server on
 // a different port can still hit the API.
-const appOrigin = process.env.APP_ORIGIN;
+const appOrigin = process.env.APP_URL || process.env.APP_ORIGIN;
 app.use(
   cors({
     credentials: true,
