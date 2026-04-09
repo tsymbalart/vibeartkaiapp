@@ -17,6 +17,8 @@ interface AuthContextValue {
   loading: boolean;
   login: (returnTo?: string) => void;
   logout: () => void;
+  devLogin: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -61,8 +63,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.location.href = `${base}/api/logout`;
   }, []);
 
+  const devLogin = useCallback(async () => {
+    try {
+      const res = await fetch(apiUrl("/api/dev-login"), {
+        method: "POST",
+        credentials: "include",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setUser(data.user ?? null);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, devLogin, refreshUser: fetchUser }}>
       {children}
     </AuthContext.Provider>
   );

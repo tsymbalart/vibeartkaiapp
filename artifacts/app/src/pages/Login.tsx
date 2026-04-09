@@ -1,11 +1,12 @@
-import { useMemo, useCallback } from "react";
+import { useMemo, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { FcGoogle } from "react-icons/fc";
 
 const IS_DEV = import.meta.env.DEV;
 
 export default function Login() {
-  const { login, loading } = useAuth();
+  const { login, devLogin } = useAuth();
+  const [devLoading, setDevLoading] = useState(false);
 
   const authError = useMemo(() => {
     if (typeof window === "undefined") return null;
@@ -13,10 +14,11 @@ export default function Login() {
     return params.get("auth_error");
   }, []);
 
-  const devLogin = useCallback(() => {
-    const base = import.meta.env.BASE_URL?.replace(/\/$/, "") || "";
-    window.location.href = `${base}/api/dev-login?returnTo=/`;
-  }, []);
+  const handleDevLogin = async () => {
+    setDevLoading(true);
+    await devLogin();
+    setDevLoading(false);
+  };
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-6">
@@ -63,21 +65,21 @@ export default function Login() {
 
         <button
           onClick={() => login("/")}
-          disabled={loading}
           data-testid="button-google-signin"
           className="w-full flex items-center justify-center gap-3 px-6 py-3.5 rounded-xl bg-white text-gray-700 font-medium transition-all duration-200 hover:bg-gray-50 disabled:opacity-50 shadow-lg border border-gray-200"
         >
           <FcGoogle className="w-5 h-5" />
-          {loading ? "Loading…" : "Sign in with Google"}
+          Sign in with Google
         </button>
 
         {IS_DEV && (
           <button
-            onClick={devLogin}
+            onClick={handleDevLogin}
+            disabled={devLoading}
             data-testid="button-dev-signin"
-            className="w-full flex items-center justify-center gap-3 px-6 py-2.5 rounded-xl bg-muted text-muted-foreground text-sm font-medium transition-all duration-200 hover:bg-muted/80 border border-border"
+            className="w-full flex items-center justify-center gap-3 px-6 py-2.5 rounded-xl bg-muted text-muted-foreground text-sm font-medium transition-all duration-200 hover:bg-muted/80 border border-border disabled:opacity-50"
           >
-            Dev: Sign in as Art Tsymbal
+            {devLoading ? "Signing in…" : "Dev: Sign in as Art Tsymbal"}
           </button>
         )}
 

@@ -349,10 +349,13 @@ async function upsertUser(
 }
 
 /**
- * Dev-only bypass: instantly signs in as the first director user.
- * Disabled in production so it cannot be abused.
+ * Dev-only bypass: creates a session without Google OAuth.
+ * Returns JSON so the frontend can call it via fetch() and then
+ * re-check /auth/user without a full page navigation (which breaks
+ * inside Replit's iframe preview).
+ * Disabled in production.
  */
-router.get("/dev-login", async (req: Request, res: Response) => {
+router.post("/dev-login", async (req: Request, res: Response) => {
   if (process.env.NODE_ENV === "production") {
     res.status(404).json({ error: "Not found" });
     return;
@@ -376,8 +379,7 @@ router.get("/dev-login", async (req: Request, res: Response) => {
   const sid = await createSession(sessionData);
   setSessionCookie(res, sid);
 
-  const returnTo = getSafeReturnTo(req.query.returnTo);
-  res.redirect(returnTo);
+  res.json({ user: toAppUser(user) });
 });
 
 router.get("/auth/user", async (req: Request, res: Response) => {
