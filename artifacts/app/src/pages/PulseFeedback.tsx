@@ -7,6 +7,7 @@ import { DimensionBadge, getPillarLabel } from "@/components/ui/dimension-badge"
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useRole } from "@/context/RoleContext";
 import { apiFetch, apiUrl, fetchWithAuth } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 import { cn, parseFollowUpContent } from "@/lib/utils";
 import {
   BiSolidMessageRounded,
@@ -60,6 +61,7 @@ type ThreadDetail = {
 
 export default function PulseFeedback() {
   const { role, userId } = useRole();
+  const { toast } = useToast();
   const [selectedThread, setSelectedThread] = useState<number | null>(null);
   const [selectedAnonLabel, setSelectedAnonLabel] = useState<string>("");
   const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set());
@@ -93,6 +95,10 @@ export default function PulseFeedback() {
       queryClient.invalidateQueries({ queryKey: ["intent-thread-detail", selectedThread] });
       queryClient.invalidateQueries({ queryKey: ["intent-threads"] });
       setReplyText("");
+      toast({ title: "Reply sent" });
+    },
+    onError: () => {
+      toast({ title: "Failed to send reply", variant: "destructive" });
     },
   });
 
@@ -106,9 +112,14 @@ export default function PulseFeedback() {
       if (!resp.ok) throw new Error("Failed to update status");
       return resp.json();
     },
-    onSuccess: () => {
+    onSuccess: (_, { status }) => {
       queryClient.invalidateQueries({ queryKey: ["intent-thread-detail", selectedThread] });
       queryClient.invalidateQueries({ queryKey: ["intent-threads"] });
+      const label = status === "resolved" ? "Thread resolved" : status === "acknowledged" ? "Thread acknowledged" : "Status updated";
+      toast({ title: label });
+    },
+    onError: () => {
+      toast({ title: "Failed to update status", variant: "destructive" });
     },
   });
 

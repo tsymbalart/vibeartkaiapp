@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useRole } from "@/context/RoleContext";
 import { apiFetch, apiUrl, fetchWithAuth } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
   BiSolidHeart,
@@ -51,6 +52,7 @@ const EMOJI_OPTIONS = ["🦎", "🌟", "💛", "🔥", "✨", "🎯", "💡", "�
 export default function Kudos() {
   const { userId } = useRole();
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const [tab, setTab] = useState<"received" | "send" | "sent">("received");
   const [selectedTeammate, setSelectedTeammate] = useState<number | null>(null);
@@ -95,6 +97,10 @@ export default function Kudos() {
       setEmoji("🦎");
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3000);
+      toast({ title: "Kudo sent" });
+    },
+    onError: () => {
+      toast({ title: "Failed to send kudo", variant: "destructive" });
     },
   });
 
@@ -110,6 +116,10 @@ export default function Kudos() {
       setConfirmDeleteId(null);
       queryClient.invalidateQueries({ queryKey: ["kudos-received"] });
       queryClient.invalidateQueries({ queryKey: ["kudos-sent"] });
+      toast({ title: "Kudo removed" });
+    },
+    onError: () => {
+      toast({ title: "Failed to remove kudo", variant: "destructive" });
     },
   });
 

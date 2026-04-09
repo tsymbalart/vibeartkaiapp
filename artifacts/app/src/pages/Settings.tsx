@@ -85,6 +85,7 @@ interface AllowedEmail {
 function AllowedEmailsSection() {
   const [newEmail, setNewEmail] = useState("");
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const { data: allowed } = useQuery<AllowedEmail[]>({
     queryKey: ["allowed-emails"],
@@ -107,6 +108,10 @@ function AllowedEmailsSection() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["allowed-emails"] });
       setNewEmail("");
+      toast({ title: "Email added to allowlist" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to add email", description: err.message, variant: "destructive" });
     },
   });
 
@@ -117,6 +122,10 @@ function AllowedEmailsSection() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["allowed-emails"] });
+      toast({ title: "Email removed from allowlist" });
+    },
+    onError: () => {
+      toast({ title: "Failed to remove email", variant: "destructive" });
     },
   });
 
@@ -256,6 +265,7 @@ function ScoringSection({ settings, onUpdate }: { settings: PulseSettings; onUpd
 
 function TeammatesSection({ users, subTeams }: { users: TeamUser[]; subTeams: SubTeam[] }) {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [expandedUserId, setExpandedUserId] = useState<number | null>(null);
 
   const addToSubTeam = useMutation({
@@ -272,6 +282,9 @@ function TeammatesSection({ users, subTeams }: { users: TeamUser[]; subTeams: Su
       queryClient.invalidateQueries({ queryKey: ["users"] });
       queryClient.invalidateQueries({ queryKey: ["sub-teams"] });
     },
+    onError: () => {
+      toast({ title: "Failed to assign to team", variant: "destructive" });
+    },
   });
 
   const removeFromSubTeam = useMutation({
@@ -285,6 +298,9 @@ function TeammatesSection({ users, subTeams }: { users: TeamUser[]; subTeams: Su
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       queryClient.invalidateQueries({ queryKey: ["sub-teams"] });
+    },
+    onError: () => {
+      toast({ title: "Failed to remove from team", variant: "destructive" });
     },
   });
 
@@ -390,6 +406,7 @@ function TeammatesSection({ users, subTeams }: { users: TeamUser[]; subTeams: Su
 
 function SubTeamsSection({ subTeams }: { subTeams: SubTeam[] }) {
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState(SUB_TEAM_COLORS[0]);
   const [isAdding, setIsAdding] = useState(false);
@@ -412,6 +429,10 @@ function SubTeamsSection({ subTeams }: { subTeams: SubTeam[] }) {
       setNewName("");
       setNewColor(SUB_TEAM_COLORS[(subTeams.length + 1) % SUB_TEAM_COLORS.length]);
       setIsAdding(false);
+      toast({ title: "Team created" });
+    },
+    onError: () => {
+      toast({ title: "Failed to create team", variant: "destructive" });
     },
   });
 
@@ -429,6 +450,10 @@ function SubTeamsSection({ subTeams }: { subTeams: SubTeam[] }) {
       queryClient.invalidateQueries({ queryKey: ["sub-teams"] });
       queryClient.invalidateQueries({ queryKey: ["users"] });
       setEditingId(null);
+      toast({ title: "Team updated" });
+    },
+    onError: () => {
+      toast({ title: "Failed to update team", variant: "destructive" });
     },
   });
 
@@ -441,6 +466,10 @@ function SubTeamsSection({ subTeams }: { subTeams: SubTeam[] }) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sub-teams"] });
       queryClient.invalidateQueries({ queryKey: ["users"] });
+      toast({ title: "Team deleted" });
+    },
+    onError: () => {
+      toast({ title: "Failed to delete team", variant: "destructive" });
     },
   });
 
@@ -707,6 +736,10 @@ function TeamMembersManagement({ members, invitations }: { members: TeamUser[]; 
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["team-members"] });
       queryClient.invalidateQueries({ queryKey: ["users"] });
+      toast({ title: "Role updated" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to update role", description: err.message, variant: "destructive" });
     },
   });
 
@@ -725,6 +758,10 @@ function TeamMembersManagement({ members, invitations }: { members: TeamUser[]; 
       queryClient.invalidateQueries({ queryKey: ["team-members"] });
       queryClient.invalidateQueries({ queryKey: ["users"] });
       setConfirmRemoveId(null);
+      toast({ title: "Member removed from team" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Failed to remove member", description: err.message, variant: "destructive" });
     },
   });
 
@@ -771,6 +808,9 @@ function TeamMembersManagement({ members, invitations }: { members: TeamUser[]; 
         setBulkResults(null);
       }
     },
+    onError: (err: Error) => {
+      toast({ title: "Failed to send invitations", description: err.message, variant: "destructive" });
+    },
   });
 
   const cancelInvite = useMutation({
@@ -783,6 +823,10 @@ function TeamMembersManagement({ members, invitations }: { members: TeamUser[]; 
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["invitations"] });
+      toast({ title: "Invitation cancelled" });
+    },
+    onError: () => {
+      toast({ title: "Failed to cancel invitation", variant: "destructive" });
     },
   });
 
@@ -1031,6 +1075,7 @@ function TeamMembersManagement({ members, invitations }: { members: TeamUser[]; 
 export default function Settings() {
   const { role } = useRole();
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const { data: settings } = useQuery<PulseSettings>({
     queryKey: ["pulse-settings"],
@@ -1069,6 +1114,10 @@ export default function Settings() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pulse-settings"] });
+      toast({ title: "Settings saved" });
+    },
+    onError: () => {
+      toast({ title: "Failed to save settings", variant: "destructive" });
     },
   });
 

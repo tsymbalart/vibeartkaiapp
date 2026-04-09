@@ -7,6 +7,7 @@ import { DimensionBadge, getPillarLabel } from "@/components/ui/dimension-badge"
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useRole } from "@/context/RoleContext";
 import { apiFetch, apiUrl, fetchWithAuth } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 import { cn, parseFollowUpContent } from "@/lib/utils";
 import {
   BiSolidMessageRounded,
@@ -52,6 +53,7 @@ type ThreadDetail = {
 
 export default function MyFeedback() {
   const { userId } = useRole();
+  const { toast } = useToast();
   const [selectedThread, setSelectedThread] = useState<number | null>(null);
   const [replyText, setReplyText] = useState("");
   const [filterPillar, setFilterPillar] = useState<string | null>(null);
@@ -82,6 +84,10 @@ export default function MyFeedback() {
       queryClient.invalidateQueries({ queryKey: ["my-feedback-detail", selectedThread] });
       queryClient.invalidateQueries({ queryKey: ["my-feedback"] });
       setReplyText("");
+      toast({ title: "Reply sent" });
+    },
+    onError: () => {
+      toast({ title: "Failed to send reply", variant: "destructive" });
     },
   });
 

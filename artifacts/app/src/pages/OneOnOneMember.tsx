@@ -286,6 +286,9 @@ export default function OneOnOneMember() {
       setShowForm(false);
       toast({ title: "1:1 note saved" });
     },
+    onError: () => {
+      toast({ title: "Failed to save note", variant: "destructive" });
+    },
   });
 
   const updateMutation = useMutation({
@@ -304,6 +307,9 @@ export default function OneOnOneMember() {
       setEditingNote(null);
       toast({ title: "1:1 note updated" });
     },
+    onError: () => {
+      toast({ title: "Failed to update note", variant: "destructive" });
+    },
   });
 
   const deleteMutation = useMutation({
@@ -318,6 +324,9 @@ export default function OneOnOneMember() {
       queryClient.invalidateQueries({ queryKey: ["one-on-one-notes", memberId] });
       queryClient.invalidateQueries({ queryKey: ["one-on-one-members"] });
       setConfirmDeleteId(null);
+    },
+    onError: () => {
+      toast({ title: "Failed to delete note", variant: "destructive" });
     },
   });
 
