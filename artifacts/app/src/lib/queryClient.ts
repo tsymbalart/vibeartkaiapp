@@ -1,43 +1,48 @@
 import { QueryClient } from "@tanstack/react-query";
-import { apiUrl } from "./api";
+import { apiMutate } from "./api";
 
+/**
+ * Single shared QueryClient instance. Pages import this when they
+ * need to invalidate / mutate without going through `useQueryClient`.
+ *
+ * Defaults:
+ *  - staleTime: 30s so navigating back to a page doesn't immediately
+ *    refetch the same data.
+ *  - retry: false — failed requests surface a typed ApiError to the
+ *    component instead of retrying silently.
+ */
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: false,
       refetchOnWindowFocus: false,
+      staleTime: 30_000,
+    },
+    mutations: {
+      retry: false,
     },
   },
 });
 
 /**
- * Typed `apiRequest` helper for the design-ops endpoints, mirroring the
- * shape used in the legacy check app. The new vibe app generally prefers
- * orval-generated hooks from `@workspace/api-client-react`, but the
- * design-ops mutations and one-off PATCH/DELETE/POST calls are simpler
- * to write against this fetch wrapper.
+ * Back-compat shim for the design-ops pages that import `apiRequest`
+ * from this module. Delegates to the unified `apiMutate` helper so
+ * all mutations throw a typed ApiError on failure.
  */
 export async function apiRequest(
-  method: "GET" | "POST" | "PATCH" | "DELETE" | "PUT",
+  method: "POST" | "PATCH" | "PUT" | "DELETE" | "GET",
   path: string,
-  body?: unknown
+  body?: unknown,
 ): Promise<unknown> {
-  const init: RequestInit = {
-    method,
-    credentials: "include",
-    headers: body ? { "Content-Type": "application/json" } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-  };
-  const resp = await fetch(apiUrl(path), init);
-  if (!resp.ok) {
-    let message = `API error: ${resp.status}`;
-    try {
-      const data = await resp.json();
-      if (data?.error) message = data.error;
-      else if (data?.message) message = data.message;
-    } catch {}
-    throw new Error(message);
+  if (method === "GET") {
+    // Rare but some legacy call sites pass "GET". Route through
+    // fetch directly since apiMutate doesn't handle GET bodies.
+    const resp = await fetch(path, { credentials: "include" });
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => "");
+      throw new Error(text || `API error: ${resp.status}`);
+    }
+    return resp.status === 204 ? null : resp.json();
   }
-  if (resp.status === 204) return null;
-  return resp.json();
+  return apiMutate(method, path, body);
 }
