@@ -8,6 +8,13 @@
       "when": 1775730248509,
       "tag": "0000_windy_silhouette",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1775741800000,
+      "tag": "0001_add_reminder_columns",
+      "breakpoints": true
     }
   ]
 }
