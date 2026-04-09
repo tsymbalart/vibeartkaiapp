@@ -22,7 +22,6 @@ import {
   BiSolidShield,
   BiSolidCrown,
   BiSolidUser,
-  BiCopy,
 } from "react-icons/bi";
 import { useAuth } from "@/context/AuthContext";
 

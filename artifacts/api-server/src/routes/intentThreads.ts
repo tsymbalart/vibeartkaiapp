@@ -3,6 +3,7 @@ import { Router, type IRouter } from "express";
 import { db, intentThreadsTable, intentMessagesTable, usersTable, questionsTable } from "@workspace/db";
 import { eq, desc, and, inArray } from "drizzle-orm";
 import { requireTeam, requireLeadOrDirector } from "../middlewares/requireAuth";
+import { intParam } from "../lib/params";
 
 const router: IRouter = Router();
 
@@ -166,9 +167,8 @@ router.get("/my-feedback", requireTeam, async (req, res): Promise<void> => {
 
 router.get("/intent-threads/:id/messages", requireTeam, async (req, res): Promise<void> => {
   const userId = req.user!.id;
-  const threadId = parseInt(req.params.id);
-
-  if (isNaN(threadId)) {
+  const threadId = intParam(req, "id");
+  if (threadId == null) {
     res.status(400).json({ error: "Invalid thread id" });
     return;
   }
@@ -218,9 +218,8 @@ router.get("/intent-threads/:id/messages", requireTeam, async (req, res): Promis
 
 router.post("/intent-threads/:id/messages", requireTeam, async (req, res): Promise<void> => {
   const userId = req.user!.id;
-  const threadId = parseInt(req.params.id);
-
-  if (isNaN(threadId)) {
+  const threadId = intParam(req, "id");
+  if (threadId == null) {
     res.status(400).json({ error: "Invalid thread id" });
     return;
   }
@@ -265,9 +264,8 @@ router.post("/intent-threads/:id/messages", requireTeam, async (req, res): Promi
 });
 
 router.patch("/intent-threads/:id", requireLeadOrDirector, async (req, res): Promise<void> => {
-  const threadId = parseInt(req.params.id);
-
-  if (isNaN(threadId)) {
+  const threadId = intParam(req, "id");
+  if (threadId == null) {
     res.status(400).json({ error: "Invalid thread id" });
     return;
   }

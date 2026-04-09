@@ -23,20 +23,17 @@ export interface SessionData {
   expires_at?: number;
 }
 
-let _oauth2Client: OAuth2Client | null = null;
-
+/**
+ * Returns a fresh `OAuth2Client` per call so each request can set its own
+ * `redirectUri` without racing the shared instance (and without poking at
+ * the client's private `redirectUri` field).
+ */
 export function getOAuth2Client(redirectUri?: string): OAuth2Client {
-  if (!_oauth2Client) {
-    _oauth2Client = new OAuth2Client(
-      process.env.GOOGLE_CLIENT_ID!,
-      process.env.GOOGLE_CLIENT_SECRET!,
-      redirectUri,
-    );
-  }
-  if (redirectUri) {
-    _oauth2Client.redirectUri = redirectUri;
-  }
-  return _oauth2Client;
+  return new OAuth2Client(
+    process.env.GOOGLE_CLIENT_ID!,
+    process.env.GOOGLE_CLIENT_SECRET!,
+    redirectUri,
+  );
 }
 
 export async function createSession(data: SessionData): Promise<string> {

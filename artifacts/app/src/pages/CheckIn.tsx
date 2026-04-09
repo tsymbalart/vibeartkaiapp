@@ -198,7 +198,6 @@ export default function CheckInFlow() {
     setResponses((prev) => ({
       ...prev,
       [questionId]: {
-        questionId,
         numericValue: null,
         textValue: null,
         emojiValue: null,
@@ -206,6 +205,7 @@ export default function CheckInFlow() {
         trafficLight: null,
         ...(prev[questionId] || {}),
         ...update,
+        questionId,
       },
     }));
   };
@@ -431,7 +431,7 @@ export default function CheckInFlow() {
       case "frequency_5":
         return (
           <div className="flex flex-col sm:flex-row justify-center gap-3 w-full max-w-2xl mx-auto mt-8">
-            {(currentQ.options || FREQUENCY_LABELS).map((label, idx) => {
+            {(currentQ.options || FREQUENCY_LABELS).map((label: string, idx: number) => {
               const val = idx + 1;
               return (
                 <button
@@ -575,7 +575,7 @@ export default function CheckInFlow() {
       case "single_select":
         return (
           <div className="w-full max-w-lg mx-auto mt-8 flex flex-wrap gap-3 justify-center">
-            {currentQ.options?.map((opt) => {
+            {currentQ.options?.map((opt: string) => {
               const selected = currentResponse?.textValue === opt;
               return (
                 <button

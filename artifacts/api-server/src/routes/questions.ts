@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { db, questionsTable, responsesTable, checkInsTable, pulseSettingsTable } from "@workspace/db";
 import { eq, asc, and, inArray, desc } from "drizzle-orm";
 import { requireTeam, requireRole } from "../middlewares/requireAuth";
+import { intParam } from "../lib/params";
 
 const router: IRouter = Router();
 
@@ -86,8 +87,8 @@ router.post("/questions", requireRole("lead", "director"), async (req, res): Pro
 });
 
 router.put("/questions/:id", requireRole("lead", "director"), async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
-  if (isNaN(id)) {
+  const id = intParam(req, "id");
+  if (id == null) {
     res.status(400).json({ error: "Invalid question id" });
     return;
   }
@@ -141,8 +142,8 @@ router.put("/questions/:id", requireRole("lead", "director"), async (req, res): 
 });
 
 router.delete("/questions/:id", requireRole("lead", "director"), async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id);
-  if (isNaN(id)) {
+  const id = intParam(req, "id");
+  if (id == null) {
     res.status(400).json({ error: "Invalid question id" });
     return;
   }

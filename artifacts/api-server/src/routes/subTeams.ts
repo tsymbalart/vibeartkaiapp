@@ -2,11 +2,12 @@ import { Router, type IRouter } from "express";
 import { db, subTeamsTable, usersTable, teamsTable, userSubTeamsTable } from "@workspace/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { requireTeam, requireRole } from "../middlewares/requireAuth";
+import { intParam } from "../lib/params";
 
 const router: IRouter = Router();
 
 router.get("/sub-teams", requireTeam, async (req, res): Promise<void> => {
-  const teamId = req.user!.teamId;
+  const teamId = req.user!.teamId!;
   const subTeams = await db.select().from(subTeamsTable).where(eq(subTeamsTable.teamId, teamId));
 
   const subTeamIds = subTeams.map((st) => st.id);
@@ -32,7 +33,7 @@ router.post("/sub-teams", requireRole("lead", "director"), async (req, res): Pro
     return;
   }
 
-  const teamId = req.user!.teamId;
+  const teamId = req.user!.teamId!;
 
   const [subTeam] = await db.insert(subTeamsTable).values({
     name,
@@ -44,8 +45,8 @@ router.post("/sub-teams", requireRole("lead", "director"), async (req, res): Pro
 });
 
 router.put("/sub-teams/:id", requireRole("lead", "director"), async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
-  if (isNaN(id)) {
+  const id = intParam(req, "id");
+  if (id == null) {
     res.status(400).json({ error: "Invalid id" });
     return;
   }
@@ -70,8 +71,8 @@ router.put("/sub-teams/:id", requireRole("lead", "director"), async (req, res): 
 });
 
 router.delete("/sub-teams/:id", requireRole("lead", "director"), async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
-  if (isNaN(id)) {
+  const id = intParam(req, "id");
+  if (id == null) {
     res.status(400).json({ error: "Invalid id" });
     return;
   }
@@ -88,7 +89,7 @@ router.delete("/sub-teams/:id", requireRole("lead", "director"), async (req, res
 });
 
 router.get("/users", requireTeam, async (req, res): Promise<void> => {
-  const teamId = req.user!.teamId;
+  const teamId = req.user!.teamId!;
   const isLead = req.user!.role === "lead" || req.user!.role === "director";
   const users = await db.select().from(usersTable).where(eq(usersTable.teamId, teamId));
 
@@ -116,8 +117,8 @@ router.get("/users", requireTeam, async (req, res): Promise<void> => {
 });
 
 router.put("/users/:id", requireRole("lead", "director"), async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
-  if (isNaN(id)) {
+  const id = intParam(req, "id");
+  if (id == null) {
     res.status(400).json({ error: "Invalid id" });
     return;
   }
@@ -169,8 +170,8 @@ router.put("/users/:id", requireRole("lead", "director"), async (req, res): Prom
 });
 
 router.post("/users/:id/sub-teams", requireRole("lead", "director"), async (req, res): Promise<void> => {
-  const userId = parseInt(req.params.id, 10);
-  if (isNaN(userId)) {
+  const userId = intParam(req, "id");
+  if (userId == null) {
     res.status(400).json({ error: "Invalid user id" });
     return;
   }
@@ -208,9 +209,9 @@ router.post("/users/:id/sub-teams", requireRole("lead", "director"), async (req,
 });
 
 router.delete("/users/:id/sub-teams/:subTeamId", requireRole("lead", "director"), async (req, res): Promise<void> => {
-  const userId = parseInt(req.params.id, 10);
-  const subTeamId = parseInt(req.params.subTeamId, 10);
-  if (isNaN(userId) || isNaN(subTeamId)) {
+  const userId = intParam(req, "id");
+  const subTeamId = intParam(req, "subTeamId");
+  if (userId == null || subTeamId == null) {
     res.status(400).json({ error: "Invalid ids" });
     return;
   }

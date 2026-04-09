@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { db, usersTable, invitationsTable, userSubTeamsTable } from "@workspace/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { requireTeam, requireLeadOrDirector } from "../middlewares/requireAuth";
+import { intParam } from "../lib/params";
 
 const router: IRouter = Router();
 
@@ -66,8 +67,8 @@ router.patch(
   "/team/members/:id/role",
   requireLeadOrDirector,
   async (req, res): Promise<void> => {
-    const id = parseInt(req.params.id, 10);
-    if (isNaN(id)) {
+    const id = intParam(req, "id");
+    if (id == null) {
       res.status(400).json({ error: "Invalid id" });
       return;
     }
@@ -122,8 +123,8 @@ router.delete(
   "/team/members/:id",
   requireLeadOrDirector,
   async (req, res): Promise<void> => {
-    const id = parseInt(req.params.id, 10);
-    if (isNaN(id)) {
+    const id = intParam(req, "id");
+    if (id == null) {
       res.status(400).json({ error: "Invalid id" });
       return;
     }
@@ -239,8 +240,8 @@ router.post("/invitations", requireLeadOrDirector, async (req, res): Promise<voi
 });
 
 router.delete("/invitations/:id", requireLeadOrDirector, async (req, res): Promise<void> => {
-  const id = parseInt(req.params.id, 10);
-  if (isNaN(id)) {
+  const id = intParam(req, "id");
+  if (id == null) {
     res.status(400).json({ error: "Invalid id" });
     return;
   }

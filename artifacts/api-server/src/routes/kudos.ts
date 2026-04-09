@@ -1,7 +1,8 @@
 import { Router, type IRouter } from "express";
 import { db, kudosTable, usersTable } from "@workspace/db";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, inArray } from "drizzle-orm";
 import { requireTeam } from "../middlewares/requireAuth";
+import { intParam } from "../lib/params";
 
 const router: IRouter = Router();
 
@@ -40,8 +41,13 @@ router.get("/kudos/sent", requireTeam, async (req, res): Promise<void> => {
     .orderBy(desc(kudosTable.createdAt));
 
   const toUserIds = [...new Set(kudos.map((k) => k.toUserId))];
+  // Scope the lookup to the id set (and the requester's team) so we don't
+  // table-scan every user row on each /kudos/sent call.
   const users = toUserIds.length > 0
-    ? await db.select({ id: usersTable.id, name: usersTable.name }).from(usersTable)
+    ? await db
+        .select({ id: usersTable.id, name: usersTable.name })
+        .from(usersTable)
+        .where(inArray(usersTable.id, toUserIds))
     : [];
   const userMap = Object.fromEntries(users.map((u) => [u.id, u.name]));
 
@@ -146,9 +152,8 @@ router.post("/kudos", requireTeam, async (req, res): Promise<void> => {
 
 router.delete("/kudos/:id", requireTeam, async (req, res): Promise<void> => {
   const userId = req.user!.id;
-  const kudoId = parseInt(req.params.id);
-
-  if (isNaN(kudoId)) {
+  const kudoId = intParam(req, "id");
+  if (kudoId == null) {
     res.status(400).json({ error: "Invalid kudo id" });
     return;
   }

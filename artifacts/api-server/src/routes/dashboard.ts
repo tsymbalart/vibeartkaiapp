@@ -485,7 +485,7 @@ router.get("/my-journey", requireTeam, async (req, res): Promise<void> => {
       favorability: 0,
       responseCount: timeline.length,
       respondentCount: 1,
-      status: avg > 0 ? (avg >= 75 ? "green" : avg >= 50 ? "yellow" : "red") as const : "insufficient" as const,
+      status: (avg <= 0 ? "insufficient" : avg >= 75 ? "green" : avg >= 50 ? "yellow" : "red") as "green" | "yellow" | "red" | "insufficient",
     };
   });
 

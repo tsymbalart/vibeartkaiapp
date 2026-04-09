@@ -9,6 +9,7 @@ import {
 } from "@workspace/db";
 import { eq, desc, and, inArray } from "drizzle-orm";
 import { requireLeadOrDirector } from "../middlewares/requireAuth";
+import { intParam } from "../lib/params";
 
 interface ActionItemInput {
   text: string;
@@ -119,8 +120,8 @@ router.get("/one-on-ones/members", leadOrDirector, async (req, res): Promise<voi
 
 router.get("/one-on-ones/members/:memberId", leadOrDirector, async (req, res): Promise<void> => {
   const user = req.user!;
-  const memberId = parseInt(req.params.memberId);
-  if (isNaN(memberId)) {
+  const memberId = intParam(req, "memberId");
+  if (memberId == null) {
     res.status(400).json({ error: "Invalid member ID" });
     return;
   }
@@ -242,8 +243,8 @@ router.post("/one-on-ones/notes", leadOrDirector, async (req, res): Promise<void
 
 router.put("/one-on-ones/notes/:noteId", leadOrDirector, async (req, res): Promise<void> => {
   const user = req.user!;
-  const noteId = parseInt(req.params.noteId);
-  if (isNaN(noteId)) {
+  const noteId = intParam(req, "noteId");
+  if (noteId == null) {
     res.status(400).json({ error: "Invalid note ID" });
     return;
   }
@@ -297,8 +298,8 @@ router.put("/one-on-ones/notes/:noteId", leadOrDirector, async (req, res): Promi
 
 router.delete("/one-on-ones/notes/:noteId", leadOrDirector, async (req, res): Promise<void> => {
   const user = req.user!;
-  const noteId = parseInt(req.params.noteId);
-  if (isNaN(noteId)) {
+  const noteId = intParam(req, "noteId");
+  if (noteId == null) {
     res.status(400).json({ error: "Invalid note ID" });
     return;
   }
@@ -319,8 +320,8 @@ router.delete("/one-on-ones/notes/:noteId", leadOrDirector, async (req, res): Pr
 
 router.put("/one-on-ones/members/:memberId/reminder", leadOrDirector, async (req, res): Promise<void> => {
   const user = req.user!;
-  const memberId = parseInt(req.params.memberId);
-  if (isNaN(memberId)) {
+  const memberId = intParam(req, "memberId");
+  if (memberId == null) {
     res.status(400).json({ error: "Invalid member ID" });
     return;
   }

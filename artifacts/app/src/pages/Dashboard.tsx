@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
   BiSolidHappy, BiSolidRightArrow, BiSolidShield, BiSolidZap, BiSolidTime, BiSolidGroup,
-  BiSolidBarChartAlt2, BiSolidError, BiSolidCheckCircle, BiSolidUpArrowAlt, BiSolidChevronDown, BiSolidLayer
+  BiSolidBarChartAlt2, BiSolidError, BiSolidCheckCircle, BiSolidUpArrowAlt, BiSolidChevronDown, BiSolidLayer,
+  BiSolidStar,
 } from "react-icons/bi";
 import { format, formatDistanceToNow } from "date-fns";
 import { cn, scoreColor } from "@/lib/utils";
