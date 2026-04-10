@@ -9,29 +9,23 @@ type Story = StoryObj<typeof HealthGauge>;
 export const Projects: Story = {
   args: {
     label: "Projects",
-    green: 3,
-    yellow: 2,
-    red: 1,
-    noData: 0,
+    total: 6,
+    counts: { green: 3, yellow: 2, red: 1, none: 0 },
   },
 };
 
 export const People: Story = {
   args: {
     label: "People",
-    green: 5,
-    yellow: 1,
-    red: 0,
-    noData: 2,
+    total: 8,
+    counts: { green: 5, yellow: 1, red: 0, none: 2 },
   },
 };
 
 export const Empty: Story = {
   args: {
     label: "Projects",
-    green: 0,
-    yellow: 0,
-    red: 0,
-    noData: 0,
+    total: 0,
+    counts: { green: 0, yellow: 0, red: 0, none: 0 },
   },
 };

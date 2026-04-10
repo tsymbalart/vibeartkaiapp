@@ -3,24 +3,31 @@ import { ScoreSelector, ComputedHealthDisplay, RiskLevelBadge, OppLevelBadge, Gu
 
 export default { title: "Design Ops/ScoreSelector" } as Meta;
 
-export const Score1to3: StoryObj<typeof ScoreSelector> = {
-  render: () => {
-    return (
-      <div className="w-[350px] space-y-6">
-        <ScoreSelector
-          label="Capacity"
-          question="Do we have enough design capacity?"
-          value={2}
-          onChange={() => {}}
-          guidance={{
-            3: "Plenty of time and people.",
-            2: "Capacity is tight.",
-            1: "Clearly lacking capacity.",
-          }}
-        />
-      </div>
-    );
-  },
+export const HealthMode: StoryObj<typeof ScoreSelector> = {
+  render: () => (
+    <div className="w-[350px]">
+      <ScoreSelector
+        label="Capacity"
+        question="Do we have enough design capacity?"
+        value={2}
+        onChange={() => {}}
+      />
+    </div>
+  ),
+};
+
+export const NumericMode: StoryObj<typeof ScoreSelector> = {
+  render: () => (
+    <div className="w-[350px]">
+      <ScoreSelector
+        label="Impact"
+        question="How big is the potential impact?"
+        value={3}
+        onChange={() => {}}
+        mode="numeric"
+      />
+    </div>
+  ),
 };
 
 export const HealthDisplay: StoryObj<typeof ComputedHealthDisplay> = {
@@ -54,12 +61,13 @@ export const OppBadges: StoryObj = {
 };
 
 export const Guidance: StoryObj<typeof GuidancePanel> = {
-  args: {
-    items: [
-      "Evaluate the last 1–2 weeks, not \"in general\"",
-      "Assess current state, not personality",
-      "If unsure between two scores, choose the lower one",
-    ],
-  },
-  render: (args) => <GuidancePanel {...args} />,
+  render: () => (
+    <GuidancePanel
+      items={[
+        "Evaluate the last 1–2 weeks, not \"in general\"",
+        "Assess current state, not personality",
+        "If unsure between two scores, choose the lower one",
+      ]}
+    />
+  ),
 };
