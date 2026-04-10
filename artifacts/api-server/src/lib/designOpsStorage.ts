@@ -127,10 +127,11 @@ export function trendFromChecks(
 
 export async function getLatestProjectHealthByProject(projectIds: number[]) {
   if (projectIds.length === 0) return new Map<number, ProjectHealthCheck>();
+  const idsParam = sql.join(projectIds.map((id) => sql`${id}`), sql`, `);
   const rows = await db.execute<ProjectHealthCheck & { _row: number }>(sql`
     SELECT DISTINCT ON (project_id) *
     FROM project_health_checks
-    WHERE project_id = ANY(${projectIds}::int[])
+    WHERE project_id = ANY(ARRAY[${idsParam}]::int[])
     ORDER BY project_id, created_at DESC
   `);
   const map = new Map<number, ProjectHealthCheck>();
@@ -142,12 +143,13 @@ export async function getLatestProjectHealthByProject(projectIds: number[]) {
 
 export async function getLatestTwoProjectHealthByProject(projectIds: number[]) {
   if (projectIds.length === 0) return new Map<number, ProjectHealthCheck[]>();
+  const idsParam = sql.join(projectIds.map((id) => sql`${id}`), sql`, `);
   const rows = await db.execute<ProjectHealthCheck & { rn: number }>(sql`
     SELECT *
     FROM (
       SELECT *, row_number() OVER (PARTITION BY project_id ORDER BY created_at DESC) AS rn
       FROM project_health_checks
-      WHERE project_id = ANY(${projectIds}::int[])
+      WHERE project_id = ANY(ARRAY[${idsParam}]::int[])
     ) t
     WHERE rn <= 2
   `);
@@ -162,10 +164,11 @@ export async function getLatestTwoProjectHealthByProject(projectIds: number[]) {
 
 export async function getLatestUserHealthByUser(userIds: number[]) {
   if (userIds.length === 0) return new Map<number, UserHealthCheck>();
+  const idsParam = sql.join(userIds.map((id) => sql`${id}`), sql`, `);
   const rows = await db.execute<UserHealthCheck>(sql`
     SELECT DISTINCT ON (user_id) *
     FROM user_health_checks
-    WHERE user_id = ANY(${userIds}::int[])
+    WHERE user_id = ANY(ARRAY[${idsParam}]::int[])
     ORDER BY user_id, created_at DESC
   `);
   const map = new Map<number, UserHealthCheck>();
@@ -177,12 +180,13 @@ export async function getLatestUserHealthByUser(userIds: number[]) {
 
 export async function getLatestTwoUserHealthByUser(userIds: number[]) {
   if (userIds.length === 0) return new Map<number, UserHealthCheck[]>();
+  const idsParam = sql.join(userIds.map((id) => sql`${id}`), sql`, `);
   const rows = await db.execute<UserHealthCheck>(sql`
     SELECT *
     FROM (
       SELECT *, row_number() OVER (PARTITION BY user_id ORDER BY created_at DESC) AS rn
       FROM user_health_checks
-      WHERE user_id = ANY(${userIds}::int[])
+      WHERE user_id = ANY(ARRAY[${idsParam}]::int[])
     ) t
     WHERE rn <= 2
   `);
