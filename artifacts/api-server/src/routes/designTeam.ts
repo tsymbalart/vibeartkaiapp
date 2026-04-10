@@ -45,6 +45,13 @@ async function validateLeadInTeam(teamId: number, leadUserId: unknown): Promise<
 router.get("/design-team", canRead, async (req, res): Promise<void> => {
   const teamId = req.user!.teamId!;
   const people = await listDesignTeamUsersEnriched(teamId);
+  // Debug: log count so we can verify the query in production logs
+  if (people.length === 0) {
+    const { db, usersTable } = await import("@workspace/db");
+    const { eq } = await import("drizzle-orm");
+    const allTeamUsers = await db.select({ id: usersTable.id, name: usersTable.name, isActive: usersTable.isActive, employmentStatus: usersTable.employmentStatus }).from(usersTable).where(eq(usersTable.teamId, teamId));
+    req.log?.info({ teamId, allTeamUsers }, "design-team: 0 enriched results, raw users dump");
+  }
   res.json(people);
 });
 
