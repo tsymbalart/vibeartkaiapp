@@ -1,16 +1,23 @@
-name: Chromatic
+name: Deploy Storybook to GitHub Pages
 
 on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
 jobs:
-  chromatic:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
         with:
@@ -23,12 +30,22 @@ jobs:
 
       - run: pnpm install
 
-      - name: Publish to Chromatic
-        uses: chromaui/action@latest
-        with:
-          projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
-          workingDir: artifacts/app
-          buildScriptName: build-storybook
+      - name: Build Storybook
+        run: pnpm --filter @workspace/app run build-storybook
         env:
           PORT: 6006
           BASE_PATH: "/"
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: artifacts/app/storybook-static
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
