@@ -247,14 +247,21 @@ async function upsertUser(
       updatedAt: new Date(),
     };
 
-    if (!existingByGoogleId.teamId) {
-      const resolved = await resolveInvite(email, pendingToken);
-      if (resolved) {
+    // Always check for pending invitations on every sign-in, even if
+    // the user already has a teamId. This handles:
+    //  - Pre-seeded users with NULL teamId
+    //  - Role upgrades (member → lead) via a new invitation
+    const resolved = await resolveInvite(email, pendingToken);
+    if (resolved) {
+      if (!existingByGoogleId.teamId) {
         updates.teamId = resolved.teamId;
+      }
+      // Apply the invited role if it's an upgrade (or if user has no team yet)
+      if (!existingByGoogleId.teamId || resolved.role !== "member") {
         updates.role = resolved.role;
-        if (resolved.invitationId != null) {
-          await markInvitationAccepted(resolved.invitationId);
-        }
+      }
+      if (resolved.invitationId != null) {
+        await markInvitationAccepted(resolved.invitationId);
       }
     }
 
@@ -280,14 +287,17 @@ async function upsertUser(
         updatedAt: new Date(),
       };
 
-      if (!existingByEmail.teamId) {
-        const resolved = await resolveInvite(email, pendingToken);
-        if (resolved) {
+      // Always check for pending invitations (same logic as googleId path).
+      const resolved = await resolveInvite(email, pendingToken);
+      if (resolved) {
+        if (!existingByEmail.teamId) {
           updates.teamId = resolved.teamId;
+        }
+        if (!existingByEmail.teamId || resolved.role !== "member") {
           updates.role = resolved.role;
-          if (resolved.invitationId != null) {
-            await markInvitationAccepted(resolved.invitationId);
-          }
+        }
+        if (resolved.invitationId != null) {
+          await markInvitationAccepted(resolved.invitationId);
         }
       }
 
