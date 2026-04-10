@@ -8,8 +8,9 @@
     "build": "vite build --config vite.config.ts",
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build"
+    "storybook": "PORT=6006 BASE_PATH='/' storybook dev -p 6006",
+    "build-storybook": "PORT=6006 BASE_PATH='/' storybook build",
+    "chromatic": "PORT=6006 BASE_PATH='/' chromatic --exit-zero-on-changes"
   },
   "devDependencies": {
     "@hello-pangea/dnd": "^18.0.1",
@@ -56,6 +57,7 @@
     "@vitejs/plugin-react": "catalog:",
     "@workspace/api-client-react": "workspace:*",
     "@workspace/scoring": "workspace:*",
+    "chromatic": "^16.1.0",
     "class-variance-authority": "catalog:",
     "clsx": "catalog:",
     "cmdk": "^1.1.1",
