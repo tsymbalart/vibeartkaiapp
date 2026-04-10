@@ -25,8 +25,6 @@ import {
   BiSolidCrown,
   BiSolidUser,
   BiCopy,
-  BiChevronLeft,
-  BiChevronRight,
   BiSolidBell,
 } from "react-icons/bi";
 import { useAuth } from "@/context/AuthContext";
@@ -1202,22 +1200,13 @@ function TeamMembersManagement({ members, invitations }: { members: TeamUser[]; 
 
 // ── Main Settings page ────────────────────────────────────────
 
-type SettingsView = "home" | "team" | "pulse" | "access";
-type TeamSubView = "members" | "subteams" | "assignments";
-
-const CATEGORY_LABELS: Record<SettingsView, string> = {
-  home:   "Settings",
-  team:   "Team",
-  pulse:  "Pulse",
-  access: "Access",
-};
+type ActiveTab = "people" | "pulse" | "access";
 
 export default function Settings() {
   const { role } = useRole();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [view, setView] = useState<SettingsView>("home");
-  const [teamSubView, setTeamSubView] = useState<TeamSubView>("members");
+  const [activeTab, setActiveTab] = useState<ActiveTab>("people");
 
   const { data: settings } = useQuery<PulseSettings>({
     queryKey: ["pulse-settings"],
@@ -1293,152 +1282,57 @@ export default function Settings() {
     );
   }
 
-  const pendingInvitations = invitations.filter((i) => i.status === "pending");
-  const scoringLabel = settings.scoringMode === "average_all" ? "Average all responses" : "Latest response only";
-  const reminderLabel = settings.reminderEnabled
-    ? `Every ${DAY_NAMES[settings.reminderDay ?? 1]} at ${formatHour(settings.reminderHour ?? 9)}`
-    : "Reminders off";
-
-  const goBack = () => setView("home");
+  const tabs: { id: ActiveTab; label: string; icon: React.ElementType }[] = [
+    { id: "people", label: "People", icon: BiSolidGroup },
+    { id: "pulse",  label: "Pulse",  icon: BiSolidCalculator },
+    ...(role === "director"
+      ? [{ id: "access" as ActiveTab, label: "Access", icon: BiSolidEnvelope }]
+      : []),
+  ];
 
   return (
     <AppLayout>
       <div className="max-w-2xl mx-auto pb-16">
 
-        {/* ── Breadcrumb header ─────────────────────────────── */}
-        <div className="flex items-center gap-2 mb-6">
-          {view !== "home" && (
-            <>
-              <button
-                onClick={goBack}
-                className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
-                data-testid="button-settings-back"
-              >
-                <BiChevronLeft className="w-4 h-4" />
-                Settings
-              </button>
-              <span className="text-muted-foreground/40 text-sm">/</span>
-              <span className="text-sm font-medium text-foreground">{CATEGORY_LABELS[view]}</span>
-            </>
-          )}
-          {view === "home" && (
-            <div className="space-y-0.5">
-              <h1 className="text-2xl font-medium tracking-tight">Settings</h1>
-              <p className="text-sm text-muted-foreground">Manage your team, pulse logic, and access control</p>
-            </div>
-          )}
+        {/* ── Page title ────────────────────────────────────── */}
+        <div className="mb-0 space-y-0.5">
+          <h1 className="text-2xl font-medium tracking-tight">Settings</h1>
+          <p className="text-sm text-muted-foreground">Configure your team, pulse logic, and access control</p>
         </div>
 
-        {/* ── Home grid ─────────────────────────────────────── */}
-        {view === "home" && (
-          <div className="space-y-3">
-            {/* Team */}
+        {/* ── Tab bar ───────────────────────────────────────── */}
+        <div className="flex border-b border-border/60 mt-6 mb-8 gap-0">
+          {tabs.map(({ id, label, icon: Icon }) => (
             <button
-              onClick={() => setView("team")}
-              className="w-full flex items-center gap-4 p-5 rounded-2xl border border-border/60 bg-card hover-elevate transition-all text-left group"
-              data-testid="button-settings-team"
+              key={id}
+              onClick={() => setActiveTab(id)}
+              className={cn(
+                "flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-colors -mb-px",
+                activeTab === id
+                  ? "border-primary text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground hover:border-border/60"
+              )}
+              data-testid={`button-tab-${id}`}
             >
-              <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                <BiSolidGroup className="w-5 h-5 text-primary" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-base font-medium text-foreground">Team</p>
-                <p className="text-sm text-muted-foreground mt-0.5">Members, roles, and sub-team structure</p>
-                <div className="flex flex-wrap gap-3 mt-1.5">
-                  <span className="text-xs text-muted-foreground">{teamMembers.length} active</span>
-                  {pendingInvitations.length > 0 && (
-                    <span className="text-xs text-muted-foreground">{pendingInvitations.length} pending</span>
-                  )}
-                  <span className="text-xs text-muted-foreground">{subTeams.length} sub-team{subTeams.length !== 1 ? "s" : ""}</span>
-                </div>
-              </div>
-              <BiChevronRight className="w-5 h-5 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors shrink-0" />
+              <Icon className="w-4 h-4" />
+              {label}
             </button>
+          ))}
+        </div>
 
-            {/* Pulse */}
-            <button
-              onClick={() => setView("pulse")}
-              className="w-full flex items-center gap-4 p-5 rounded-2xl border border-border/60 bg-card hover-elevate transition-all text-left group"
-              data-testid="button-settings-pulse"
-            >
-              <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                <BiSolidCalculator className="w-5 h-5 text-primary" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-base font-medium text-foreground">Pulse</p>
-                <p className="text-sm text-muted-foreground mt-0.5">Scoring logic and reminder schedule</p>
-                <div className="flex flex-wrap gap-3 mt-1.5">
-                  <span className="text-xs text-muted-foreground">Scoring: {scoringLabel}</span>
-                  <span className="text-xs text-muted-foreground">{reminderLabel}</span>
-                </div>
-              </div>
-              <BiChevronRight className="w-5 h-5 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors shrink-0" />
-            </button>
-
-            {/* Access — director only */}
-            {role === "director" && (
-              <button
-                onClick={() => setView("access")}
-                className="w-full flex items-center gap-4 p-5 rounded-2xl border border-border/60 bg-card hover-elevate transition-all text-left group"
-                data-testid="button-settings-access"
-              >
-                <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                  <BiSolidEnvelope className="w-5 h-5 text-primary" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-base font-medium text-foreground">Access</p>
-                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5">Director only</Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground mt-0.5">Control who can sign in to Artkai Pulse</p>
-                  <div className="mt-1.5">
-                    <span className="text-xs text-muted-foreground">
-                      {allowedEmails.length} allowed email{allowedEmails.length !== 1 ? "s" : ""} / domain{allowedEmails.length !== 1 ? "s" : ""}
-                    </span>
-                  </div>
-                </div>
-                <BiChevronRight className="w-5 h-5 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors shrink-0" />
-              </button>
-            )}
+        {/* ── People tab ────────────────────────────────────── */}
+        {activeTab === "people" && (
+          <div className="space-y-8">
+            <TeamMembersManagement members={teamMembers} invitations={invitations} />
+            <div className="border-t border-border/40" />
+            <SubTeamsSection subTeams={subTeams} />
+            <div className="border-t border-border/40" />
+            <TeammatesSection users={users} subTeams={subTeams} />
           </div>
         )}
 
-        {/* ── Team detail ───────────────────────────────────── */}
-        {view === "team" && (
-          <div>
-            {/* Sub-nav */}
-            <div className="flex p-1 bg-secondary/50 rounded-xl mb-6 w-fit gap-0.5">
-              {(["members", "subteams", "assignments"] as TeamSubView[]).map((v) => (
-                <button
-                  key={v}
-                  onClick={() => setTeamSubView(v)}
-                  className={cn(
-                    "px-4 py-1.5 rounded-lg text-sm font-medium transition-colors",
-                    teamSubView === v
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                  data-testid={`button-team-tab-${v}`}
-                >
-                  {v === "subteams" ? "Sub-teams" : v === "assignments" ? "Assignments" : "Members"}
-                </button>
-              ))}
-            </div>
-
-            {teamSubView === "members" && (
-              <TeamMembersManagement members={teamMembers} invitations={invitations} />
-            )}
-            {teamSubView === "subteams" && (
-              <SubTeamsSection subTeams={subTeams} />
-            )}
-            {teamSubView === "assignments" && (
-              <TeammatesSection users={users} subTeams={subTeams} />
-            )}
-          </div>
-        )}
-
-        {/* ── Pulse detail ──────────────────────────────────── */}
-        {view === "pulse" && (
+        {/* ── Pulse tab ─────────────────────────────────────── */}
+        {activeTab === "pulse" && (
           <div className="space-y-6">
             <ScoringSection
               settings={settings}
@@ -1451,8 +1345,8 @@ export default function Settings() {
           </div>
         )}
 
-        {/* ── Access detail ─────────────────────────────────── */}
-        {view === "access" && role === "director" && (
+        {/* ── Access tab (director only) ─────────────────────── */}
+        {activeTab === "access" && role === "director" && (
           <AllowedEmailsSection />
         )}
       </div>
