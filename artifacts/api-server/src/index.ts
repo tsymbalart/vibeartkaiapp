@@ -4,7 +4,7 @@ import { db, teamsTable, usersTable, allowedEmailsTable } from "@workspace/db";
 import { runMigrations } from "@workspace/db/migrator";
 import { startSessionGC } from "./lib/sessionGC";
 import { startReminderCron } from "./lib/reminderCron";
-import { eq } from "drizzle-orm";
+import { eq, inArray, isNull, and } from "drizzle-orm";
 
 async function seedDefaults() {
   // Never run the development seed in production — it hardcodes an Artkai
@@ -115,6 +115,30 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
+/**
+ * ONE-TIME DATA FIX — safe to run repeatedly (WHERE team_id IS NULL guard).
+ * Sets team_id = 1 for Ksenia (id=2) and Valeria (id=3) who were created
+ * before the invitation-acceptance flow correctly wrote team_id.
+ * Remove this function and its call after the next production deploy confirms
+ * the fix has been applied.
+ */
+async function fixNullTeamIds() {
+  try {
+    const updated = await db
+      .update(usersTable)
+      .set({ teamId: 1, updatedAt: new Date() })
+      .where(and(inArray(usersTable.id, [2, 3]), isNull(usersTable.teamId)))
+      .returning({ id: usersTable.id, name: usersTable.name, teamId: usersTable.teamId });
+    if (updated.length > 0) {
+      logger.info({ updated }, "fixNullTeamIds: patched users with null team_id");
+    } else {
+      logger.info("fixNullTeamIds: nothing to patch (already applied or not needed)");
+    }
+  } catch (err) {
+    logger.error({ err }, "fixNullTeamIds: failed — continuing startup anyway");
+  }
+}
+
 async function bootstrap() {
   try {
     await runMigrations();
@@ -124,6 +148,7 @@ async function bootstrap() {
     process.exit(1);
   }
 
+  await fixNullTeamIds();
   await seedDefaults();
   startSessionGC();
   startReminderCron();
