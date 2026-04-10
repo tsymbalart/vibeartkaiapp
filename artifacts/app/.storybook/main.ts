@@ -1,4 +1,5 @@
 import type { StorybookConfig } from "@storybook/react-vite";
+import path from "path";
 
 const config: StorybookConfig = {
   stories: ["../src/**/*.stories.@(ts|tsx)"],
@@ -6,13 +7,25 @@ const config: StorybookConfig = {
     "@storybook/addon-essentials",
     "@storybook/addon-a11y",
   ],
-  framework: "@storybook/react-vite",
+  framework: {
+    name: "@storybook/react-vite",
+    options: {},
+  },
   viteFinal: async (config) => {
-    // Inherit path aliases from the app's vite config
+    // Storybook uses its own Vite instance — we add plugins and aliases
+    // here instead of inheriting the app's vite.config.ts (which requires
+    // PORT/BASE_PATH env vars that Storybook doesn't set).
+    const { default: react } = await import("@vitejs/plugin-react");
+    const { default: tailwindcss } = await import("@tailwindcss/vite");
+
+    config.plugins = config.plugins || [];
+    config.plugins.push(react());
+    config.plugins.push(tailwindcss());
+
     config.resolve = config.resolve || {};
     config.resolve.alias = {
       ...config.resolve.alias,
-      "@": "/home/user/vibeartkaiapp/artifacts/app/src",
+      "@": path.resolve(__dirname, "../src"),
     };
     return config;
   },
