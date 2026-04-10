@@ -116,13 +116,16 @@ if (Number.isNaN(port) || port <= 0) {
 }
 
 /**
- * ONE-TIME DATA FIX — safe to run repeatedly (WHERE team_id IS NULL guard).
+ * ONE-TIME DATA FIX — only active when RUN_NULL_TEAM_ID_FIX=true.
  * Sets team_id = 1 for Ksenia (id=2) and Valeria (id=3) who were created
  * before the invitation-acceptance flow correctly wrote team_id.
- * Remove this function and its call after the next production deploy confirms
- * the fix has been applied.
+ * After deploying and verifying the fix, unset RUN_NULL_TEAM_ID_FIX and
+ * remove this function entirely.
  */
 async function fixNullTeamIds() {
+  if (process.env.RUN_NULL_TEAM_ID_FIX !== "true") {
+    return;
+  }
   try {
     const updated = await db
       .update(usersTable)

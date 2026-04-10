@@ -86,3 +86,6 @@ channel = "stable-25_05"
 [userenv.shared]
 APP_URL = "https://artkai.app"
 RESEND_FROM = "Artkai Pulse <pulse@artkai.app>"
+
+[userenv.production]
+RUN_NULL_TEAM_ID_FIX = "true"
