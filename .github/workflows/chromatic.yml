@@ -32,7 +32,7 @@ jobs:
 
       # Storybook 8 does not support Vite 7. Temporarily swap to Vite 6.
       - name: Pin Vite 6 for Storybook compatibility
-        run: cd artifacts/app && npm pkg set devDependencies.vite="6.4.2" && cd ../.. && pnpm install
+        run: cd artifacts/app && npm pkg set devDependencies.vite="6.4.2" && cd ../.. && pnpm install --no-frozen-lockfile
 
       - name: Build Storybook
         working-directory: artifacts/app
