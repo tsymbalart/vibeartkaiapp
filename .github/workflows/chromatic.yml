@@ -28,20 +28,17 @@ jobs:
           node-version: 24
           cache: pnpm
 
-      - run: pnpm install
+      - run: pnpm install --no-frozen-lockfile
 
       # Storybook 8 does not support Vite 7. Override vite to v6
       # just for the Storybook workspace build.
       - name: Pin Vite 6 for Storybook compatibility
         working-directory: artifacts/app
-        run: pnpm add -D vite@6 --save-exact
+        run: pnpm add -D vite@6.4.2 --save-exact --no-frozen-lockfile
 
       - name: Build Storybook
         working-directory: artifacts/app
-        run: npx storybook build
-        env:
-          PORT: 6006
-          BASE_PATH: "/"
+        run: PORT=6006 BASE_PATH="/" npx storybook build
 
       - uses: actions/upload-pages-artifact@v3
         with:
