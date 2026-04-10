@@ -25,27 +25,6 @@ const config: StorybookConfig = {
       "@": path.resolve(__dirname, "../src"),
     };
 
-    // Fix Vite 7 + Storybook 8 build compatibility: the Storybook
-    // preview entry tries to import from @storybook internals that
-    // Rollup can't resolve. Marking them as external fixes the build.
-    config.build = config.build || {};
-    config.build.rollupOptions = config.build.rollupOptions || {};
-    config.build.rollupOptions.onwarn = (warning, defaultHandler) => {
-      // Suppress the "unresolved import" warnings from Storybook internals
-      if (warning.code === "UNRESOLVED_IMPORT" && warning.exporter?.includes("@storybook")) {
-        return;
-      }
-      defaultHandler(warning);
-    };
-
-    // Ensure Storybook's virtual modules are not treated as external
-    config.optimizeDeps = config.optimizeDeps || {};
-    config.optimizeDeps.include = [
-      ...(config.optimizeDeps.include || []),
-      "@storybook/react",
-      "@storybook/react/preview",
-    ];
-
     return config;
   },
 };

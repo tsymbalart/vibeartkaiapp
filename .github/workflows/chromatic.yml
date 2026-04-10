@@ -30,14 +30,15 @@ jobs:
 
       - run: pnpm install
 
-      # Storybook 8 requires Vite ≤6. The app uses Vite 7 (from catalog).
-      # We temporarily install Vite 6 in the app workspace just for the
-      # Storybook build. This does NOT affect the production app build.
-      - name: Pin Vite 6 for Storybook build
-        run: cd artifacts/app && pnpm add -D vite@6 --save-exact
+      # Storybook 8 does not support Vite 7. Override vite to v6
+      # just for the Storybook workspace build.
+      - name: Pin Vite 6 for Storybook compatibility
+        working-directory: artifacts/app
+        run: pnpm add -D vite@6 --save-exact
 
       - name: Build Storybook
-        run: pnpm --filter @workspace/app run build-storybook
+        working-directory: artifacts/app
+        run: npx storybook build
         env:
           PORT: 6006
           BASE_PATH: "/"
