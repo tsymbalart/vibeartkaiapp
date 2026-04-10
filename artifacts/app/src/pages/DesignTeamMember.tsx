@@ -178,23 +178,18 @@ export default function DesignTeamMember() {
     },
   });
 
-  const deletePersonMutation = useMutation({
+  const removeFromTeamMutation = useMutation({
     mutationFn: async () => {
-      // Soft-untrack: clear roleTitle (consistent with DesignTeam list page).
-      await apiRequest("PATCH", `/api/design-team/${userId}`, {
-        roleTitle: null,
-        leadUserId: null,
-        notes: null,
-        reviewDate: null,
-      });
+      await apiRequest("DELETE", `/api/team/members/${userId}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/design-team"] });
-      toast({ title: "Person untracked" });
+      queryClient.invalidateQueries({ queryKey: ["/api/team/members"] });
+      toast({ title: "Member removed from team" });
       navigate("/design-team");
     },
     onError: (error: Error) => {
-      toast({ title: "Failed to untrack person", description: error.message, variant: "destructive" });
+      toast({ title: "Failed to remove member", description: error.message, variant: "destructive" });
     },
   });
 
@@ -232,8 +227,8 @@ export default function DesignTeamMember() {
   const userMap = useMemo(() => new Map((users || []).map((u) => [u.id, u])), [users]);
   const projectMap = useMemo(() => new Map((projects || []).map((p) => [p.id, p])), [projects]);
   const untrackedUsers = useMemo(
-    () => (users || []).filter((u) => !u.roleTitle),
-    [users]
+    () => [] as typeof users,  // No longer used — all members appear automatically
+    []
   );
 
   const kanbanItems: KanbanItem[] = useMemo(() => {
@@ -394,7 +389,7 @@ export default function DesignTeamMember() {
                     onClick={() => setDeleteOpen(true)}
                     data-testid="button-delete-person"
                   >
-                    <BiTrash className="w-3.5 h-3.5 mr-2" /> Untrack
+                    <BiTrash className="w-3.5 h-3.5 mr-2" /> Remove from team
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -414,7 +409,6 @@ export default function DesignTeamMember() {
             <PersonForm
               leads={leads}
               projects={projects || []}
-              untrackedUsers={untrackedUsers}
               onClose={() => setEditOpen(false)}
               editData={person as never}
             />
@@ -424,21 +418,21 @@ export default function DesignTeamMember() {
         <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Untrack Person</AlertDialogTitle>
+              <AlertDialogTitle>Remove from team</AlertDialogTitle>
               <AlertDialogDescription>
-                This will remove &quot;{person.name}&quot; from the Design Team listing. Their pulse account
-                remains intact, and you can re-track them later.
+                This will remove &quot;{person.name}&quot; from the team entirely. They will lose access
+                to pulse check-ins and all Design Ops data. You can re-invite them later.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel data-testid="button-cancel-delete-person">Cancel</AlertDialogCancel>
               <AlertDialogAction
                 data-testid="button-confirm-delete-person"
-                onClick={() => deletePersonMutation.mutate()}
-                disabled={deletePersonMutation.isPending}
+                onClick={() => removeFromTeamMutation.mutate()}
+                disabled={removeFromTeamMutation.isPending}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
-                {deletePersonMutation.isPending ? "Untracking..." : "Untrack"}
+                {removeFromTeamMutation.isPending ? "Removing..." : "Remove"}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

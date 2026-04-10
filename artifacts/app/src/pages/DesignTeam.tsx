@@ -137,8 +137,8 @@ export default function DesignTeam() {
   const projectMap = useMemo(() => new Map((projects || []).map((p) => [p.id, p])), [projects]);
   const userMap = useMemo(() => new Map((teamMembers || []).map((u) => [u.id, u])), [teamMembers]);
   const untrackedUsers = useMemo(
-    () => (teamMembers || []).filter((u) => !u.roleTitle),
-    [teamMembers]
+    () => [] as TeamMemberRaw[],  // No longer used — all team members appear automatically
+    []
   );
 
   const archiveMutation = useMutation({
@@ -163,20 +163,14 @@ export default function DesignTeam() {
     onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
-  const deleteMutation = useMutation({
+  const removeMutation = useMutation({
     mutationFn: async (userId: number) => {
-      // Soft-untrack: clear roleTitle so they no longer appear in design-team listing.
-      // We do not hard-delete the user (they may still have a Pulse account).
-      await apiRequest("PATCH", `/api/design-team/${userId}`, {
-        roleTitle: null,
-        leadUserId: null,
-        notes: null,
-        reviewDate: null,
-      });
+      await apiRequest("DELETE", `/api/team/members/${userId}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/design-team"] });
-      toast({ title: "Person untracked" });
+      queryClient.invalidateQueries({ queryKey: ["/api/team/members"] });
+      toast({ title: "Member removed from team" });
       setDeleteTarget(null);
     },
     onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
@@ -194,12 +188,11 @@ export default function DesignTeam() {
             aria-describedby={undefined}
           >
             <SheetHeader className="pb-4 border-b border-border mb-4">
-              <SheetTitle>Track Team Member</SheetTitle>
+              <SheetTitle>Edit Member Details</SheetTitle>
             </SheetHeader>
             <PersonForm
               leads={leads}
               projects={projects || []}
-              untrackedUsers={untrackedUsers}
               onClose={() => setCreateOpen(false)}
             />
           </SheetContent>
@@ -282,8 +275,8 @@ export default function DesignTeam() {
                 Archived
               </button>
             </div>
-            <Button data-testid="button-create-person" onClick={() => setCreateOpen(true)} className="h-10">
-              <BiPlus className="w-4 h-4 mr-1" /> Track Member
+            <Button data-testid="button-create-person" onClick={() => navigate("/settings")} className="h-10" variant="outline">
+              <BiPlus className="w-4 h-4 mr-1" /> Invite Member
             </Button>
           </div>
         </div>
@@ -303,7 +296,7 @@ export default function DesignTeam() {
                 ? "Try adjusting your search"
                 : showArchived
                 ? "Archived people will appear here"
-                : "Track your first team member"
+                : "Invite your first team member via Settings"
             }
           />
         ) : (
@@ -481,7 +474,7 @@ export default function DesignTeam() {
                                 onClick={() => setDeleteTarget(p)}
                                 data-testid={`button-delete-person-${p.id}`}
                               >
-                                <BiTrash className="w-3.5 h-3.5 mr-2" /> Untrack
+                                <BiTrash className="w-3.5 h-3.5 mr-2" /> Remove from team
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -503,21 +496,21 @@ export default function DesignTeam() {
         >
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Untrack Person</AlertDialogTitle>
+              <AlertDialogTitle>Remove from team</AlertDialogTitle>
               <AlertDialogDescription>
-                This will remove &quot;{deleteTarget?.name}&quot; from the Design Team listing. Their pulse
-                account remains intact, and you can re-track them later.
+                This will remove &quot;{deleteTarget?.name}&quot; from the team entirely. They will lose
+                access to pulse check-ins and all Design Ops data. You can re-invite them later.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel data-testid="button-cancel-delete-person">Cancel</AlertDialogCancel>
               <AlertDialogAction
                 data-testid="button-confirm-delete-person"
-                onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
-                disabled={deleteMutation.isPending}
+                onClick={() => deleteTarget && removeMutation.mutate(deleteTarget.id)}
+                disabled={removeMutation.isPending}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
-                {deleteMutation.isPending ? "Untracking..." : "Untrack"}
+                {removeMutation.isPending ? "Removing..." : "Remove"}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -530,12 +523,11 @@ export default function DesignTeam() {
 interface PersonFormProps {
   leads: TeamMemberRaw[];
   projects: ProjectLite[];
-  untrackedUsers: TeamMemberRaw[];
   onClose: () => void;
   editData?: DesignTeamMemberItem | null;
 }
 
-export function PersonForm({ leads, projects, untrackedUsers, onClose, editData }: PersonFormProps) {
+export function PersonForm({ leads, projects, onClose, editData }: PersonFormProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [form, setForm] = useState({
@@ -587,13 +579,13 @@ export function PersonForm({ leads, projects, untrackedUsers, onClose, editData 
       if (editData) {
         queryClient.invalidateQueries({ queryKey: [`/api/design-team/${editData.id}`] });
       }
-      toast({ title: editData ? "Person updated" : "Person tracked" });
+      toast({ title: "Member details updated" });
       onClose();
     },
     onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
-  const canSubmit = !!form.userId && !!form.roleTitle && !!form.leadUserId;
+  const canSubmit = !!form.userId;
 
   return (
     <form
@@ -603,45 +595,18 @@ export function PersonForm({ leads, projects, untrackedUsers, onClose, editData 
       }}
       className="space-y-4"
     >
-      {editData ? (
+      {editData && (
         <div className="flex items-center gap-3 p-3 rounded-xl bg-secondary/40 border border-border">
           <span className="text-[14px] font-medium text-foreground">{editData.name}</span>
         </div>
-      ) : (
-        <div className="space-y-2">
-          <Label>User</Label>
-          <Select value={form.userId} onValueChange={(v) => setForm({ ...form, userId: v })}>
-            <SelectTrigger data-testid="select-user-to-track">
-              <SelectValue placeholder="Select an untracked team member" />
-            </SelectTrigger>
-            <SelectContent>
-              {untrackedUsers.length === 0 ? (
-                <div className="px-3 py-2 text-sm text-muted-foreground">
-                  All team members are already tracked.
-                </div>
-              ) : (
-                untrackedUsers.map((u) => (
-                  <SelectItem key={u.id} value={String(u.id)}>
-                    {u.name}
-                  </SelectItem>
-                ))
-              )}
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-muted-foreground">
-            Only people who have already signed in with their @artk.ai Google account can be tracked. Add new
-            emails to the allowlist in Settings to invite more people.
-          </p>
-        </div>
       )}
       <div className="space-y-2">
-        <Label>Role Title</Label>
+        <Label>Job Title</Label>
         <Input
           value={form.roleTitle}
           onChange={(e) => setForm({ ...form, roleTitle: e.target.value })}
-          required
           data-testid="input-role-title"
-          placeholder="e.g. Senior Designer"
+          placeholder="e.g. Senior Designer (optional)"
         />
       </div>
       <div className="space-y-2">

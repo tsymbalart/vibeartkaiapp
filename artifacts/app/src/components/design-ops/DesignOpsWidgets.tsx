@@ -247,7 +247,7 @@ export function DesignOpsWidgets() {
               </Link>
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground mt-3">No team members tracked yet</p>
+            <p className="text-sm text-muted-foreground mt-3">No team members yet</p>
           )}
         </section>
 

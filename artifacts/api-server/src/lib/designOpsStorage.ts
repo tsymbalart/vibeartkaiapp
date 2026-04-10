@@ -12,7 +12,7 @@ import {
   type RegisterItem,
   type User,
 } from "@workspace/db";
-import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   computeHealthStatus,
   computeRiskScore,
@@ -225,13 +225,14 @@ export async function listProjectsEnriched(teamId: number) {
 }
 
 export async function listDesignTeamUsersEnriched(teamId: number) {
+  // Every active team member is part of Design Ops. The roleTitle field
+  // is an optional "job title", not a visibility gate.
   const users = await db
     .select()
     .from(usersTable)
     .where(
       and(
         eq(usersTable.teamId, teamId),
-        isNotNull(usersTable.roleTitle),
         eq(usersTable.isActive, true)
       )
     );
