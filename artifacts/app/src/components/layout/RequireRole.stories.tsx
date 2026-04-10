@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { RequireRole } from "./RequireRole";
+import { ThemeProvider } from "@/context/ThemeContext";
 import { AuthProvider } from "@/context/AuthContext";
 
 const meta: Meta<typeof RequireRole> = {
@@ -7,9 +8,11 @@ const meta: Meta<typeof RequireRole> = {
   component: RequireRole,
   decorators: [
     (Story) => (
-      <AuthProvider>
-        <Story />
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <Story />
+        </AuthProvider>
+      </ThemeProvider>
     ),
   ],
 };

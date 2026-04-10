@@ -1,4 +1,5 @@
 import type { Preview } from "@storybook/react-vite";
+import React from "react";
 import "../src/index.css";
 
 const preview: Preview = {
@@ -30,7 +31,8 @@ const preview: Preview = {
     (Story, context) => {
       const theme = context.globals.theme || "light";
       document.documentElement.classList.toggle("dark", theme === "dark");
-      return Story();
+      // Wrap every story in TooltipProvider so Radix tooltips work
+      return React.createElement(Story);
     },
   ],
 };
