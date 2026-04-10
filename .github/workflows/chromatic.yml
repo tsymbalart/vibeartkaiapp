@@ -30,11 +30,9 @@ jobs:
 
       - run: pnpm install
 
-      # Storybook 8 does not support Vite 7. Override vite to v6
-      # just for the Storybook workspace build.
+      # Storybook 8 does not support Vite 7. Temporarily swap to Vite 6.
       - name: Pin Vite 6 for Storybook compatibility
-        working-directory: artifacts/app
-        run: pnpm add -D vite@6.4.2 --save-exact
+        run: cd artifacts/app && npm pkg set devDependencies.vite="6.4.2" && cd ../.. && pnpm install
 
       - name: Build Storybook
         working-directory: artifacts/app
