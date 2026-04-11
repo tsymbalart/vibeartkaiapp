@@ -3,7 +3,23 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Button } from "./button";
 import { BiDotsHorizontalRounded, BiSolidPencil, BiArchive, BiTrash } from "react-icons/bi";
 
-const meta: Meta<typeof DropdownMenu> = { title: "UI/DropdownMenu", component: DropdownMenu };
+const meta: Meta<typeof DropdownMenu> = {
+  title: "UI/DropdownMenu",
+  component: DropdownMenu,
+  parameters: {
+    docs: {
+      description: {
+        component: [
+          "**What**: Contextual menu opened from a trigger button (Radix DropdownMenu).",
+          "**When to use**: Row-level actions in tables (edit/archive/delete), overflow menus on cards, user-profile menu in Sidebar. Prefer over raw buttons when you have 3+ actions to group.",
+          "**Composition**: `DropdownMenu` → `DropdownMenuTrigger` → `DropdownMenuContent` → `DropdownMenuLabel` / `DropdownMenuItem` / `DropdownMenuSeparator`.",
+          "**Where in the app**: ItemCard overflow (…), Design Team row actions, Sidebar user menu, project row actions.",
+          "**Related**: ContextMenu (right-click variant), Popover (non-menu overlay), NavigationMenu (top-nav).",
+        ].join("\n\n"),
+      },
+    },
+  },
+};
 export default meta;
 
 type Story = StoryObj<typeof DropdownMenu>;

@@ -1,7 +1,23 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { ItemCard, type KanbanItem } from "./ItemCard";
 
-const meta: Meta<typeof ItemCard> = { title: "Design Ops/ItemCard", component: ItemCard };
+const meta: Meta<typeof ItemCard> = {
+  title: "Design Ops/ItemCard",
+  component: ItemCard,
+  parameters: {
+    docs: {
+      description: {
+        component: [
+          "**What**: Draggable card representing a single risk or opportunity on the Kanban board.",
+          "**When to use**: Inside KanbanBoard columns. Surfaces title, short description, risk/opp level, linked project/person, due date, and responsible user. Clicking opens ItemDetailPanel.",
+          "**Key props**: `item: KanbanItem` (domain model), `onMove`, `onEdit` handlers. Variants auto-adapt to `type: \"risk\" | \"opportunity\"`.",
+          "**Where in the app**: KanbanBoard on Operational Tasks and Design Team Member pages.",
+          "**Related**: KanbanBoard (container), ItemDetailPanel (editor sheet), RiskLevelBadge, OppLevelBadge.",
+        ].join("\n\n"),
+      },
+    },
+  },
+};
 export default meta;
 
 type Story = StoryObj<typeof ItemCard>;

@@ -4,7 +4,23 @@ import { Button } from "./button";
 import { Input } from "./input";
 import { Label } from "./label";
 
-const meta: Meta<typeof Popover> = { title: "UI/Popover", component: Popover };
+const meta: Meta<typeof Popover> = {
+  title: "UI/Popover",
+  component: Popover,
+  parameters: {
+    docs: {
+      description: {
+        component: [
+          "**What**: Floating panel anchored to a trigger element (Radix Popover).",
+          "**When to use**: Inline editors, filter panels, date pickers, quick settings — anywhere you'd show a small form or info block without a full modal.",
+          "**Composition**: `Popover` → `PopoverTrigger` → `PopoverContent` with custom body.",
+          "**Where in the app**: Date pickers (Calendar), filter menus on Design Team, lightweight edit panels.",
+          "**Related**: Dialog (modal for larger forms), Tooltip (hover info only), HoverCard (link preview), DropdownMenu (action menu).",
+        ].join("\n\n"),
+      },
+    },
+  },
+};
 export default meta;
 
 type Story = StoryObj<typeof Popover>;

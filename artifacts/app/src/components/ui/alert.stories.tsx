@@ -2,7 +2,23 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Alert, AlertDescription, AlertTitle } from "./alert";
 import { BiSolidError, BiSolidCheckCircle } from "react-icons/bi";
 
-const meta: Meta<typeof Alert> = { title: "UI/Alert", component: Alert };
+const meta: Meta<typeof Alert> = {
+  title: "UI/Alert",
+  component: Alert,
+  parameters: {
+    docs: {
+      description: {
+        component: [
+          "**What**: Static callout box for surfacing status messages inline with page content (shadcn/ui).",
+          "**When to use**: Non-blocking notifications that should stay visible — e.g. \"your pulse check-in is due\", permission errors, success confirmations after saving.",
+          "**Variants**: `default` (neutral), `destructive` (error/danger). For success states compose with green Tailwind classes (see Success story).",
+          "**Where in the app**: Pulse Feedback banner, Design Ops empty-state guidance, settings validation errors.",
+          "**Related**: AlertDialog (blocking confirmation), Toast/Sonner (transient pop-up), Badge (inline status).",
+        ].join("\n\n"),
+      },
+    },
+  },
+};
 export default meta;
 
 type Story = StoryObj<typeof Alert>;

@@ -4,7 +4,23 @@ import { Button } from "./button";
 import { Input } from "./input";
 import { Label } from "./label";
 
-const meta: Meta<typeof Dialog> = { title: "UI/Dialog", component: Dialog };
+const meta: Meta<typeof Dialog> = {
+  title: "UI/Dialog",
+  component: Dialog,
+  parameters: {
+    docs: {
+      description: {
+        component: [
+          "**What**: Accessible modal overlay for focused editing or decisions (Radix Dialog).",
+          "**When to use**: Non-destructive flows that need the user's full attention — edit profile, invite teammate, add project, pulse question editor. Use AlertDialog for destructive confirms.",
+          "**Composition**: `Dialog` → `DialogTrigger` → `DialogContent` (with `DialogHeader`/`Title`/`Description`) → body → `DialogFooter`.",
+          "**Where in the app**: Invite flow, add/edit project dialogs, pulse question editor, profile edit.",
+          "**Related**: AlertDialog (destructive confirm), Sheet (side panel for longer forms), Drawer (mobile-style bottom).",
+        ].join("\n\n"),
+      },
+    },
+  },
+};
 export default meta;
 
 type Story = StoryObj<typeof Dialog>;

@@ -1,7 +1,22 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { ScoreSelector, ComputedHealthDisplay, RiskLevelBadge, OppLevelBadge, GuidancePanel } from "./ScoreSelector";
 
-export default { title: "Design Ops/ScoreSelector" } as Meta;
+export default {
+  title: "Design Ops/ScoreSelector",
+  parameters: {
+    docs: {
+      description: {
+        component: [
+          "**What**: 1–3 score picker with contextual question, guidance and computed-health helpers. Also exports `ComputedHealthDisplay`, `RiskLevelBadge`, `OppLevelBadge`, and `GuidancePanel`.",
+          "**When to use**: Pulse check-ins (each dimension scored 1–3) and Design Ops risk/opportunity scoring. Health mode colour-codes 1=red, 2=yellow, 3=green; numeric mode shows raw numbers for abstract metrics.",
+          "**Key props**: `label`, `question`, `value: 1|2|3`, `onChange`, `mode?: \"health\"|\"numeric\"`. The component renders inline guidance when provided.",
+          "**Where in the app**: Pulse Feedback check-in, Design Ops risk/opportunity scoring, Quick Add multi-step form.",
+          "**Related**: Slider (continuous numeric), RadioGroup (generic picker), HealthBadge (rendered output).",
+        ].join("\n\n"),
+      },
+    },
+  },
+} as Meta;
 
 export const HealthMode: StoryObj<typeof ScoreSelector> = {
   render: () => (

@@ -2,7 +2,23 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "./card";
 import { Button } from "./button";
 
-const meta: Meta<typeof Card> = { title: "UI/Card", component: Card };
+const meta: Meta<typeof Card> = {
+  title: "UI/Card",
+  component: Card,
+  parameters: {
+    docs: {
+      description: {
+        component: [
+          "**What**: Surface container with optional header, content, and footer (shadcn/ui).",
+          "**When to use**: Wrap any self-contained block — dashboard widgets, settings sections, project summaries, health snapshots.",
+          "**Composition**: `Card` + `CardHeader` (with `CardTitle`, `CardDescription`) + `CardContent` + `CardFooter`. Omit whichever parts you don't need.",
+          "**Where in the app**: Dashboard metrics, Design Ops widget tiles, Team Member profile panel, One-on-Ones session summary, settings sections.",
+          "**Related**: ItemCard (domain-specific risk/opp card), Sheet (side panel), Dialog (modal).",
+        ].join("\n\n"),
+      },
+    },
+  },
+};
 export default meta;
 
 type Story = StoryObj<typeof Card>;

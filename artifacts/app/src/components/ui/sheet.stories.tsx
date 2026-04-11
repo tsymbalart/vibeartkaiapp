@@ -4,7 +4,23 @@ import { Button } from "./button";
 import { Input } from "./input";
 import { Label } from "./label";
 
-const meta: Meta<typeof Sheet> = { title: "UI/Sheet", component: Sheet };
+const meta: Meta<typeof Sheet> = {
+  title: "UI/Sheet",
+  component: Sheet,
+  parameters: {
+    docs: {
+      description: {
+        component: [
+          "**What**: Slide-in side panel for longer editing or navigation flows (Radix Dialog variant).",
+          "**When to use**: Long forms that would crowd a Dialog — editing a risk/opportunity detail, multi-step register panel, mobile navigation drawer.",
+          "**Key props**: `side` (`right` default, `left`, `top`, `bottom`). Composed as Sheet → SheetTrigger → SheetContent → SheetHeader/Title/Description → body.",
+          "**Where in the app**: ItemDetailPanel, QuickAddButton multi-step form, Sidebar mobile drawer, Kanban item editor.",
+          "**Related**: Dialog (centered modal), Drawer (bottom sheet), Popover (small inline panel).",
+        ].join("\n\n"),
+      },
+    },
+  },
+};
 export default meta;
 
 type Story = StoryObj<typeof Sheet>;

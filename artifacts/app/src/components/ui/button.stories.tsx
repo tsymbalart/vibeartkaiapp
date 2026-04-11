@@ -5,6 +5,19 @@ import { BiSolidRightArrow, BiSolidEnvelope } from "react-icons/bi";
 const meta: Meta<typeof Button> = {
   title: "UI/Button",
   component: Button,
+  parameters: {
+    docs: {
+      description: {
+        component: [
+          "**What**: Versatile action button with variants, sizes and icon support (shadcn/ui).",
+          "**When to use**: The primary building block for any click action — CTAs, dialog confirmations, form submissions, toolbars, icon-only controls.",
+          "**Variants**: `default` (filled primary), `secondary` (muted filled), `destructive` (danger), `outline`, `ghost` (text only), `link` (inline link-style). Sizes: `default`, `sm`, `lg`, `icon` (square).",
+          "**Where in the app**: Everywhere — Dashboard CTAs, Pulse Check-in submit, dialog footers, sheet actions, Kanban Add button.",
+          "**Related**: ButtonGroup (joined buttons), DropdownMenu (button + menu), ToggleGroup (toggleable buttons).",
+        ].join("\n\n"),
+      },
+    },
+  },
   argTypes: {
     variant: {
       control: "select",

@@ -4,6 +4,19 @@ import { Input } from "./input";
 const meta: Meta<typeof Input> = {
   title: "UI/Input",
   component: Input,
+  parameters: {
+    docs: {
+      description: {
+        component: [
+          "**What**: Single-line form text field (shadcn/ui).",
+          "**When to use**: Any short text input — name, email, URL, project title, search boxes. For multi-line use Textarea; for OTP use InputOTP.",
+          "**Key props**: Standard `<input>` props (`type`, `placeholder`, `value`, `defaultValue`, `disabled`), plus Tailwind class overrides.",
+          "**Where in the app**: Sign-in email field, invite form, project name, pulse question editor, filter/search bars.",
+          "**Related**: Textarea, Label, Field (labelled wrapper), InputGroup (with addons), Form (RHF integration).",
+        ].join("\n\n"),
+      },
+    },
+  },
 };
 export default meta;
 

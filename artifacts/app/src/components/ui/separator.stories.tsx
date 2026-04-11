@@ -1,7 +1,23 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Separator } from "./separator";
 
-const meta: Meta<typeof Separator> = { title: "UI/Separator", component: Separator };
+const meta: Meta<typeof Separator> = {
+  title: "UI/Separator",
+  component: Separator,
+  parameters: {
+    docs: {
+      description: {
+        component: [
+          "**What**: Thin horizontal or vertical divider line (Radix Separator).",
+          "**When to use**: Visual break between grouped content — sections in a Card, rows in a DropdownMenu, items in an inline toolbar.",
+          "**Key props**: `orientation` (`horizontal` default, `vertical`), `decorative` (default true).",
+          "**Where in the app**: Sidebar sections, DropdownMenu separators, Card internal dividers, Settings groups.",
+          "**Related**: DropdownMenuSeparator (menu-specific), Card.",
+        ].join("\n\n"),
+      },
+    },
+  },
+};
 export default meta;
 
 type Story = StoryObj<typeof Separator>;
