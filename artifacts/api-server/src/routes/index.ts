@@ -16,6 +16,7 @@ import designTeamRouter from "./designTeam";
 import registerItemsRouter from "./registerItems";
 import allowedEmailsRouter from "./allowedEmails";
 import designOpsDashboardRouter from "./designOpsDashboard";
+import cronRouter from "./cron";
 
 const router: IRouter = Router();
 
@@ -36,5 +37,6 @@ router.use(designTeamRouter);
 router.use(registerItemsRouter);
 router.use(allowedEmailsRouter);
 router.use(designOpsDashboardRouter);
+router.use(cronRouter);
 
 export default router;

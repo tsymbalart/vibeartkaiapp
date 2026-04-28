@@ -14,7 +14,8 @@ export const pulseSettingsTable = pgTable("pulse_settings", {
   // Weekly reminder config
   reminderEnabled: boolean("reminder_enabled").notNull().default(false),
   reminderDay: integer("reminder_day").notNull().default(1), // 0=Sun..6=Sat
-  reminderHour: integer("reminder_hour").notNull().default(9), // 0-23 UTC
+  reminderHour: integer("reminder_hour").notNull().default(9), // 0-23 in reminderTimezone
+  reminderTimezone: text("reminder_timezone").notNull().default("UTC"), // IANA tz name
   lastReminderSentAt: timestamp("last_reminder_sent_at", { withTimezone: true }),
 }, (table) => [
   unique("pulse_settings_team_id_unique").on(table.teamId),

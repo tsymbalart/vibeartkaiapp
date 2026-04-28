@@ -32,6 +32,7 @@ router.get("/pulse-settings", requireTeam, async (req, res): Promise<void> => {
       reminderEnabled: false,
       reminderDay: 1,
       reminderHour: 9,
+      reminderTimezone: "UTC",
     });
     return;
   }
@@ -41,7 +42,7 @@ router.get("/pulse-settings", requireTeam, async (req, res): Promise<void> => {
 
 router.put("/pulse-settings", requireRole("lead", "director"), async (req, res): Promise<void> => {
   const teamId = req.user!.teamId!;
-  const { sessionSize, pillarWeights, scoringMode, reminderEnabled, reminderDay, reminderHour } = req.body;
+  const { sessionSize, pillarWeights, scoringMode, reminderEnabled, reminderDay, reminderHour, reminderTimezone } = req.body;
 
   const VALID_SCORING_MODES = ["latest_only", "average_all"];
   if (scoringMode !== undefined && !VALID_SCORING_MODES.includes(scoringMode)) {
@@ -62,6 +63,20 @@ router.put("/pulse-settings", requireRole("lead", "director"), async (req, res):
   if (reminderHour !== undefined && (typeof reminderHour !== "number" || reminderHour < 0 || reminderHour > 23)) {
     res.status(400).json({ error: "reminderHour must be 0 through 23" });
     return;
+  }
+
+  if (reminderTimezone !== undefined) {
+    if (typeof reminderTimezone !== "string" || reminderTimezone.length === 0 || reminderTimezone.length > 64) {
+      res.status(400).json({ error: "reminderTimezone must be a non-empty IANA timezone string" });
+      return;
+    }
+    try {
+      // Validate by trying to format with the zone — throws RangeError for unknown zones.
+      new Intl.DateTimeFormat("en-US", { timeZone: reminderTimezone }).format(new Date());
+    } catch {
+      res.status(400).json({ error: `reminderTimezone "${reminderTimezone}" is not a valid IANA timezone` });
+      return;
+    }
   }
 
   const VALID_FOCUS_LEVELS = ["focus", "normal", "reduced", "off"];
@@ -86,6 +101,7 @@ router.put("/pulse-settings", requireRole("lead", "director"), async (req, res):
   if (reminderEnabled !== undefined) updateSet.reminderEnabled = !!reminderEnabled;
   if (reminderDay !== undefined) updateSet.reminderDay = reminderDay;
   if (reminderHour !== undefined) updateSet.reminderHour = reminderHour;
+  if (reminderTimezone !== undefined) updateSet.reminderTimezone = reminderTimezone;
 
   const [row] = await db
     .insert(pulseSettingsTable)
@@ -97,6 +113,7 @@ router.put("/pulse-settings", requireRole("lead", "director"), async (req, res):
       reminderEnabled: reminderEnabled ?? false,
       reminderDay: reminderDay ?? 1,
       reminderHour: reminderHour ?? 9,
+      reminderTimezone: reminderTimezone ?? "UTC",
     })
     .onConflictDoUpdate({
       target: pulseSettingsTable.teamId,

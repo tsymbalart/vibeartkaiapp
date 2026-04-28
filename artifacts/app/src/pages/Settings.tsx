@@ -67,6 +67,7 @@ interface PulseSettings {
   reminderEnabled: boolean;
   reminderDay: number;
   reminderHour: number;
+  reminderTimezone: string;
 }
 
 interface AllowedEmail {
@@ -283,11 +284,25 @@ function ScoringSection({ settings, onUpdate }: { settings: PulseSettings; onUpd
   );
 }
 
+function detectBrowserTimezone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch {
+    return "UTC";
+  }
+}
+
 function RemindersSection({ settings, onUpdate }: { settings: PulseSettings; onUpdate: (updates: Partial<PulseSettings>) => void }) {
   const [enabled, setEnabled] = useState(settings.reminderEnabled);
   const [day, setDay] = useState(settings.reminderDay);
   const [hour, setHour] = useState(settings.reminderHour);
   const [dirty, setDirty] = useState(false);
+
+  // The browser's current IANA timezone — sent on save so the backend cron knows
+  // which zone to match the configured day+hour against.
+  const browserTimezone = detectBrowserTimezone();
+  const storedTimezone = settings.reminderTimezone || "UTC";
+  const timezoneMismatch = enabled && storedTimezone !== "UTC" && storedTimezone !== browserTimezone;
 
   useEffect(() => {
     setEnabled(settings.reminderEnabled);
@@ -340,41 +355,59 @@ function RemindersSection({ settings, onUpdate }: { settings: PulseSettings; onU
         </div>
 
         {enabled && (
-          <div className="grid grid-cols-2 gap-3 pt-4 border-t border-border/60">
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1.5">Day</label>
-              <select
-                value={day}
-                onChange={(e) => markDirty({ day: Number(e.target.value) })}
-                className="w-full h-9 px-3 rounded-lg border border-border bg-background text-sm outline-none"
-                data-testid="select-reminder-day"
-              >
-                {DAY_NAMES.map((name, i) => (
-                  <option key={i} value={i}>{name}</option>
-                ))}
-              </select>
+          <div className="space-y-3 pt-4 border-t border-border/60">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1.5">Day</label>
+                <select
+                  value={day}
+                  onChange={(e) => markDirty({ day: Number(e.target.value) })}
+                  className="w-full h-9 px-3 rounded-lg border border-border bg-background text-sm outline-none"
+                  data-testid="select-reminder-day"
+                >
+                  {DAY_NAMES.map((name, i) => (
+                    <option key={i} value={i}>{name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1.5">Time</label>
+                <select
+                  value={hour}
+                  onChange={(e) => markDirty({ hour: Number(e.target.value) })}
+                  className="w-full h-9 px-3 rounded-lg border border-border bg-background text-sm outline-none"
+                  data-testid="select-reminder-hour"
+                >
+                  {Array.from({ length: 24 }, (_, h) => (
+                    <option key={h} value={h}>{formatHour(h)}</option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1.5">Time</label>
-              <select
-                value={hour}
-                onChange={(e) => markDirty({ hour: Number(e.target.value) })}
-                className="w-full h-9 px-3 rounded-lg border border-border bg-background text-sm outline-none"
-                data-testid="select-reminder-hour"
-              >
-                {Array.from({ length: 24 }, (_, h) => (
-                  <option key={h} value={h}>{formatHour(h)}</option>
-                ))}
-              </select>
-            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Time zone: <span className="font-medium text-foreground">{browserTimezone}</span>
+              {storedTimezone !== "UTC" && storedTimezone !== browserTimezone && (
+                <span className="ml-1 text-amber-600 dark:text-amber-400">(saved as {storedTimezone}; click Save reminders to update)</span>
+              )}
+              {storedTimezone === "UTC" && (
+                <span className="ml-1 text-amber-600 dark:text-amber-400">(no zone saved yet — click Save reminders to record your zone)</span>
+              )}
+            </p>
           </div>
         )}
 
-        {dirty && (
+        {(dirty || timezoneMismatch || (enabled && storedTimezone === "UTC")) && (
           <div className="flex justify-end pt-1">
             <Button
               size="sm"
-              onClick={() => onUpdate({ reminderEnabled: enabled, reminderDay: day, reminderHour: hour })}
+              onClick={() =>
+                onUpdate({
+                  reminderEnabled: enabled,
+                  reminderDay: day,
+                  reminderHour: hour,
+                  reminderTimezone: browserTimezone,
+                })
+              }
               className="rounded-lg text-xs"
               data-testid="button-save-reminders"
             >
